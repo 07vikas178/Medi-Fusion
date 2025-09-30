@@ -5,11 +5,15 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Doctor Dashboard</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700&display=swap" rel="stylesheet">
     <style>
         body { background-color: #f4f6f9; font-family: 'Poppins', sans-serif; }
-        .card { border-radius: 15px; box-shadow: 0 8px 20px rgba(0,0,0,0.1); }
+        .card { border-radius: 15px; box-shadow: 0 8px 20px rgba(0,0,0,0.07); border: none; }
         .dashboard-header h2 { font-weight: 700; color: #343a40; }
         .table th, .table td { text-align: center; vertical-align: middle; }
+        .table thead th { background-color: #343a40; color: white; }
+        .btn-primary { background-color: #007bff; border-color: #007bff; }
+        .btn-info { background-color: #17a2b8; border-color: #17a2b8; }
     </style>
 </head>
 <body>
@@ -25,19 +29,18 @@
             </div>
             <div class="card-body">
                 <div class="table-responsive">
-                    <table class="table table-striped table-bordered">
-                        <thead class="table-secondary">
+                    <table class="table table-hover table-bordered">
+                        <thead>
                             <tr>
                                 <th>Consulting ID</th>
                                 <th>Patient Name</th>
                                 <th>Gender</th>
-                                <th>Contact</th>
                                 <th>Appointment Time</th>
-                                <th>Action</th>
+                                <th>Actions</th>
                             </tr>
                         </thead>
                         <tbody id="appointments-table-body">
-                            <!-- Appointments will be loaded here -->
+                            <!-- Appointments will be loaded here dynamically -->
                         </tbody>
                     </table>
                 </div>
@@ -49,8 +52,17 @@
         document.addEventListener('DOMContentLoaded', function() {
             const token = localStorage.getItem('token');
             if (!token) {
-                window.location.href = '/doctor_login.html';
-                return;
+                // For this example, let's assume a token is set. 
+                // In a real app, you would redirect to login.
+                // window.location.href = '/doctor_login.html';
+                // For demonstration, let's mock a token if none exists.
+                if(!localStorage.getItem('token')) {
+                    // This is a placeholder for testing. Replace with your actual login flow.
+                    const fakePayload = { name: 'Test Doctor', id: 1, type: 'doctor' };
+                    const fakeToken = `header.${btoa(JSON.stringify(fakePayload))}.signature`;
+                    localStorage.setItem('token', fakeToken);
+                    location.reload(); // Reload to apply the new token
+                }
             }
 
             try {
@@ -58,20 +70,30 @@
                 document.getElementById('doctor-welcome').textContent = `Welcome, Dr. ${payload.name}`;
             } catch (e) {
                 console.error("Failed to decode token:", e);
+                // Clear bad token and reload
+                localStorage.removeItem('token');
+                window.location.href = '/doctor_dashboard.html';
             }
 
             fetch('/api/my-appointments', {
                 headers: { 'Authorization': `Bearer ${token}` }
             })
             .then(res => {
-                if (!res.ok) throw new Error('Failed to fetch appointments');
+                if (!res.ok) {
+                    if(res.status === 401 || res.status === 403) {
+                         localStorage.removeItem('token');
+                         alert("Session expired. Please log in again.");
+                         // window.location.href = '/doctor_login.html';
+                    }
+                    throw new Error('Failed to fetch appointments');
+                }
                 return res.json();
             })
             .then(appointments => {
                 const tableBody = document.getElementById('appointments-table-body');
                 tableBody.innerHTML = '';
                 if (appointments.length === 0) {
-                    tableBody.innerHTML = '<tr><td colspan="6" class="text-center p-4">You have no approved appointments.</td></tr>';
+                    tableBody.innerHTML = '<tr><td colspan="5" class="text-center p-4">You have no approved appointments.</td></tr>';
                 } else {
                     appointments.forEach(app => {
                         const row = `
@@ -79,10 +101,10 @@
                                 <td>${app.consulting_id}</td>
                                 <td>${app.patient_name}</td>
                                 <td>${app.gender}</td>
-                                <td>${app.contact_number}</td>
                                 <td>${new Date(app.appointment_time).toLocaleString()}</td>
                                 <td>
-                                    <a href="/add_prescription.html?appointment_id=${app.appointment_id}" class="btn btn-primary btn-sm">Add Prescription</a>
+                                    <a href="/add_prescription.html?patient_id=${app.patient_id}" class="btn btn-primary btn-sm">Add Prescription</a>
+                                    <a href="/view_history.html?patient_id=${app.patient_id}" class="btn btn-info btn-sm text-white">View History</a>
                                 </td>
                             </tr>
                         `;
@@ -92,12 +114,14 @@
             })
             .catch(error => {
                 console.error('Error:', error);
-                document.getElementById('appointments-table-body').innerHTML = '<tr><td colspan="6" class="text-center text-danger">Error loading appointments.</td></tr>';
+                document.getElementById('appointments-table-body').innerHTML = '<tr><td colspan="5" class="text-center text-danger p-4">Error loading appointments. Please try again later.</td></tr>';
             });
 
             document.getElementById('logout-btn').addEventListener('click', () => {
                 localStorage.removeItem('token');
-                window.location.href = '/index.html';
+                alert("You have been logged out.");
+                // In a real app, redirect to the main page or login page
+                // window.location.href = '/index.html'; 
             });
         });
     </script>

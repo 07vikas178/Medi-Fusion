@@ -2,149 +2,125 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
+    <title>Add Prescription - MediChain</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Add Prescription - Medi Fusion</title>
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600&display=swap" rel="stylesheet">
     <style>
-        body {
-            font-family: 'Poppins', sans-serif;
-            background-color: #f4f7f6;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            min-height: 100vh;
-            margin: 0;
-        }
-        .container {
-            background: white;
-            padding: 2rem 2.5rem;
-            border-radius: 12px;
-            box-shadow: 0 8px 25px rgba(0,0,0,0.1);
-            width: 100%;
-            max-width: 500px;
-        }
-        h1 {
-            color: #333;
-            text-align: center;
-            margin-bottom: 1.5rem;
-        }
-        label {
-            display: block;
-            margin-bottom: .5rem;
-            font-weight: 600;
-            color: #555;
-        }
-        textarea {
-            width: 100%;
-            padding: .75rem;
-            border: 1px solid #ddd;
-            border-radius: 8px;
-            font-size: 1rem;
-            margin-bottom: 1rem;
-            min-height: 100px;
-            resize: vertical;
-        }
-        button {
-            width: 100%;
-            padding: .8rem;
-            border: none;
-            border-radius: 8px;
-            background-color: #007bff;
-            color: white;
-            font-size: 1.1rem;
-            font-weight: 600;
-            cursor: pointer;
-            transition: background-color 0.3s;
-        }
-        button:hover {
-            background-color: #0056b3;
-        }
-        #message {
-            margin-top: 1rem;
-            padding: 1rem;
-            border-radius: 8px;
-            display: none;
-            text-align: center;
-        }
+        body { font-family: Poppins, sans-serif; background-color: #f4f7f6; display: flex; justify-content: center; align-items: center; min-height: 100vh; margin: 0; }
+        .container { background: white; padding: 2rem 2.5rem; border-radius: 12px; box-shadow: 0 8px 25px rgba(0,0,0,0.1); width: 100%; max-width: 500px; }
+        h1 { color: #333; text-align: center; margin-bottom: 1.5rem; }
+        label { display: block; margin-bottom: .5rem; font-weight: 600; color: #555; }
+        input, textarea { width: 100%; box-sizing: border-box; padding: .75rem; border: 1px solid #ddd; border-radius: 8px; font-size: 1rem; margin-bottom: 1rem; }
+        input:read-only { background-color: #e9ecef; cursor: not-allowed; }
+        textarea { min-height: 100px; resize: vertical; }
+        button { width: 100%; padding: .8rem; border: none; border-radius: 8px; background-color: #007bff; color: white; font-size: 1.1rem; font-weight: 600; cursor: pointer; transition: background-color 0.3s; }
+        button:hover { background-color: #0056b3; }
+        button:disabled { background-color: #a0c3e6; cursor: wait; }
+        .message { margin-top: 1rem; padding: 1rem; border-radius: 8px; display: none; text-align: center;}
         .success { background-color: #d4edda; color: #155724; }
         .error { background-color: #f8d7da; color: #721c24; }
     </style>
 </head>
 <body>
-    <div class="container">
-        <h1>Add Prescription for Appointment #<span id="appointment-id-display">...</span></h1>
-        <form id="prescription-form">
-            <label for="diagnosis">Diagnosis:</label>
-            <textarea id="diagnosis" name="diagnosis" placeholder="Enter diagnosis details" required></textarea>
+<div class="container">
+    <h1>Add Patient Prescription</h1>
+    <form id="prescription-form">
+        <label for="patientId">Patient ID</label>
+        <input type="text" id="patientId" name="patientId" placeholder="Patient ID" required readonly>
+        
+        <label for="doctorName">Doctor Name</label>
+        <input type="text" id="doctorName" name="doctorName" placeholder="Doctor Name" required readonly>
+        
+        <label for="disease">Disease / Diagnosis</label>
+        <input type="text" id="disease" name="disease" placeholder="Enter diagnosis/disease" required>
+        
+        <label for="text">Prescription (Text)</label>
+        <textarea id="text" name="text" placeholder="E.g. Paracetamol 500mg, 1 tab twice a day"></textarea>
+        
+        <label for="file">Or upload Prescription File (PDF, etc.)</label>
+        <input type="file" id="file" name="file">
+        
+        <button type="submit" id="submit-btn">Submit Prescription</button>
+    </form>
+    <div id="message" class="message"></div>
+</div>
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+    const params = new URLSearchParams(window.location.search);
+    const patientId = params.get('patient_id');
+    const patientIdInput = document.getElementById('patientId');
+    const doctorNameInput = document.getElementById('doctorName');
 
-            <label for="prescription_details">Prescription Details:</label>
-            <textarea id="prescription_details" name="prescription_details" placeholder="e.g., Paracetamol 500mg - 1 tablet twice a day for 3 days" required></textarea>
+    if (patientId) {
+        patientIdInput.value = patientId;
+    } else {
+        alert('Patient ID not found in URL. Please go back to the dashboard.');
+        document.getElementById('submit-btn').disabled = true;
+    }
 
-            <button type="submit">Submit Prescription</button>
-        </form>
-        <div id="message"></div>
-         <a href="/doctor_dashboard.html" style="display: block; text-align: center; margin-top: 1rem;">Back to Dashboard</a>
-    </div>
+    const token = localStorage.getItem('token');
+    if (token) {
+        try {
+            const payload = JSON.parse(atob(token.split('.')[1]));
+            doctorNameInput.value = payload.name;
+        } catch (e) {
+            console.error('Failed to parse token:', e);
+            alert('Could not retrieve doctor information. Please log in again.');
+        }
+    } else {
+        alert('You are not logged in. Please log in to continue.');
+        // window.location.href = '/doctor_login.html'; 
+    }
+});
 
-    <script>
-        document.addEventListener('DOMContentLoaded', () => {
-            const appointmentIdDisplay = document.getElementById('appointment-id-display');
-            const form = document.getElementById('prescription-form');
-            const messageDiv = document.getElementById('message');
+document.getElementById('prescription-form').onsubmit = async function(e) {
+    e.preventDefault();
+    const form = e.target;
+    const submitBtn = document.getElementById('submit-btn');
+    const msgDiv = document.getElementById('message');
+    
+    // Basic validation
+    if (!form.text.value && !form.file.files[0]) {
+        alert("Please provide either a text prescription or upload a file.");
+        return;
+    }
 
-            const urlParams = new URLSearchParams(window.location.search);
-            const appointmentId = urlParams.get('appointment_id');
+    submitBtn.disabled = true;
+    submitBtn.textContent = 'Submitting...';
+    msgDiv.style.display = 'none';
+    msgDiv.className = 'message';
+    
+    const formData = new FormData(form);
 
-            if (appointmentId) {
-                appointmentIdDisplay.textContent = appointmentId;
-            } else {
-                appointmentIdDisplay.textContent = 'N/A';
-                alert('Error: No appointment ID provided.');
+    try {
+        const resp = await fetch('/api/prescription', { 
+            method: 'POST', 
+            body: formData,
+            headers: {
+                 'Authorization': `Bearer ${localStorage.getItem('token')}`
             }
-
-            form.addEventListener('submit', async (event) => {
-                event.preventDefault();
-                if (!appointmentId) return;
-
-                const formData = new FormData(form);
-                const data = {
-                    appointment_id: appointmentId,
-                    diagnosis: formData.get('diagnosis'),
-                    prescription_details: formData.get('prescription_details')
-                };
-
-                try {
-                    // This assumes you have a doctor token stored from login
-                    const token = localStorage.getItem('doctorAuthToken');
-                    const response = await fetch('/api/prescriptions', {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                            'Authorization': `Bearer ${token}`
-                        },
-                        body: JSON.stringify(data)
-                    });
-
-                    const result = await response.json();
-
-                    if (response.ok) {
-                        messageDiv.textContent = 'Prescription added successfully!';
-                        messageDiv.className = 'success';
-                        form.reset();
-                    } else {
-                        messageDiv.textContent = result.error || 'Failed to add prescription.';
-                        messageDiv.className = 'error';
-                    }
-                    messageDiv.style.display = 'block';
-
-                } catch (error) {
-                    console.error('Submit error:', error);
-                    messageDiv.textContent = 'An error occurred. Please try again.';
-                    messageDiv.className = 'error';
-                    messageDiv.style.display = 'block';
-                }
-            });
         });
-    </script>
+
+        const res = await resp.json();
+
+        if(resp.ok && res.success) {
+            msgDiv.textContent = 'Prescription stored successfully! CID: ' + res.cid;
+            msgDiv.classList.add('success');
+            form.disease.value = '';
+            form.text.value = '';
+            form.file.value = '';
+        } else {
+            throw new Error(res.error || 'An unknown error occurred.');
+        }
+    } catch (error) {
+        msgDiv.textContent = 'Error: ' + error.message;
+        msgDiv.classList.add('error');
+    } finally {
+        msgDiv.style.display = 'block';
+        submitBtn.disabled = false;
+        submitBtn.textContent = 'Submit Prescription';
+    }
+};
+</script>
 </body>
 </html>

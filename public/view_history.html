@@ -2,95 +2,119 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
+    <title>Medical History - MediChain</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Appointment History - Medi Fusion</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600&display=swap" rel="stylesheet">
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;600&display=swap');
-        body {
-            font-family: 'Poppins', sans-serif;
-            background-color: #f0f2f5;
-        }
-        .container {
-            padding-top: 2rem;
-        }
-        .card {
-            border-radius: 15px;
-            box-shadow: 0 6px 20px rgba(0,0,0,0.08);
+        body { font-family: Poppins, sans-serif; background-color: #f0f2f5; }
+        .container { padding-top: 2rem; }
+        .card { border-radius: 15px; box-shadow: 0 6px 20px rgba(0,0,0,0.08); border: none; }
+        #history-section .record {
+             border-left: 5px solid #007bff;
         }
     </style>
 </head>
 <body>
-    <div class="container">
-        <div class="d-flex justify-content-between align-items-center mb-4">
-            <h1 class="h2">My Appointment History</h1>
-            <a href="/patient_dashboard.html" class="btn btn-secondary">Back to Dashboard</a>
-        </div>
-        
-        <div class="card">
-            <div class="card-body">
-                <div class="table-responsive">
-                    <table class="table table-hover">
-                        <thead class="table-light">
-                            <tr>
-                                <th>Appointment ID</th>
-                                <th>Doctor</th>
-                                <th>Date & Time</th>
-                                <th>Status</th>
-                            </tr>
-                        </thead>
-                        <tbody id="history-table-body">
-                            <!-- History will be loaded here -->
-                        </tbody>
-                    </table>
+<div class="container">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1 class="h2" id="history-title">Patient Medical History</h1>
+        <a href="doctor_dashboard.html" class="btn btn-secondary">Back to Dashboard</a>
+    </div>
+    <div class="card">
+        <div class="card-body">
+            <div class="mb-3">
+                <label for="patientIdInput" class="form-label"><strong>Enter Patient ID to View History</strong></label>
+                <div class="input-group">
+                    <input type="text" id="patientIdInput" class="form-control" placeholder="Patient ID">
+                    <button class="btn btn-primary" onclick="loadHistory()">Load History</button>
                 </div>
-                 <div id="no-history-message" class="alert alert-info" style="display: none;">
-                    You have no past appointments.
-                </div>
+            </div>
+            <hr/>
+            <div id="history-section">
+                <p class="text-muted text-center">Medical history will be displayed here.</p>
             </div>
         </div>
     </div>
+</div>
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+    const params = new URLSearchParams(window.location.search);
+    const patientId = params.get('patient_id');
+    if (patientId) {
+        document.getElementById('patientIdInput').value = patientId;
+        loadHistory(); // Automatically load history
+    }
+});
 
-    <script>
-        document.addEventListener('DOMContentLoaded', async () => {
-            const tableBody = document.getElementById('history-table-body');
-            const noHistoryMessage = document.getElementById('no-history-message');
+async function loadHistory() {
+    const id = document.getElementById('patientIdInput').value.trim();
+    const section = document.getElementById('history-section');
+    const title = document.getElementById('history-title');
+    
+    if(!id) {
+        section.innerHTML = '<div class="alert alert-warning">Please enter a Patient ID.</div>';
+        return;
+    }
 
-            // Check if patient is logged in
-            const patientInfo = JSON.parse(localStorage.getItem('patientInfo'));
-            if (!patientInfo || !patientInfo.patient_id) {
-                window.location.href = '/patient_login.html';
-                return;
-            }
-
-            const patientId = patientInfo.patient_id;
-
-            try {
-                // Fetch appointment history from the API
-                const response = await fetch(`/api/patient/${patientId}/appointments`);
-                const appointments = await response.json();
-
-                if (appointments.length === 0) {
-                    noHistoryMessage.style.display = 'block';
-                } else {
-                    tableBody.innerHTML = ''; // Clear loader/placeholder
-                    appointments.forEach(app => {
-                        const row = document.createElement('tr');
-                        const appointmentDate = new Date(app.appointment_time).toLocaleString();
-                        row.innerHTML = `
-                            <td>${app.consulting_id}</td>
-                            <td>${app.doctor_name}</td>
-                            <td>${appointmentDate}</td>
-                            <td><span class="badge bg-${app.status === 'Approved' ? 'success' : 'warning'}">${app.status}</span></td>
-                        `;
-                        tableBody.appendChild(row);
-                    });
-                }
-            } catch (error) {
-                console.error('Error fetching appointment history:', error);
-                tableBody.innerHTML = '<tr><td colspan="4" class="text-center text-danger">Could not load appointment history.</td></tr>';
-            }
+    title.textContent = `Medical History for Patient: ${id}`;
+    section.innerHTML = `
+        <div class="d-flex justify-content-center align-items-center p-3">
+            <div class="spinner-border text-primary" role="status">
+                <span class="visually-hidden">Loading...</span>
+            </div>
+            <strong class="ms-3">Loading history from the blockchain...</strong>
+        </div>`;
+    
+    try {
+        const resp = await fetch(`/api/history/${id}`, {
+             headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
         });
-    </script>
+        if (!resp.ok) {
+            const errData = await resp.json();
+            throw new Error(errData.error || 'Failed to fetch history');
+        }
+        const res = await resp.json();
+        
+        if(res.history && res.history.length > 0) {
+            // Sort by most recent first
+            res.history.sort((a, b) => b.timestamp - a.timestamp);
+            section.innerHTML = ''; // Clear loading spinner
+            res.history.forEach(rec => {
+                let contentHtml = '';
+                if (rec.data.startsWith('[Error:')) {
+                    contentHtml = `<div class="alert alert-danger p-2 mt-2">${rec.data}</div>`;
+                } else if (rec.data.startsWith('[PDF Document')) {
+                     contentHtml = `<div class="alert alert-secondary p-2 mt-2">
+                        ${rec.data} <a href="https://ipfs.io/ipfs/${rec.cid}" target="_blank" class="alert-link">View File</a>
+                     </div>`;
+                } else {
+                    contentHtml = `<pre class="mt-2 p-2 bg-light border rounded" style="white-space: pre-wrap; word-wrap: break-word;">${rec.data}</pre>`;
+                }
+
+                section.innerHTML += `
+                    <div class="record my-3 p-3 bg-white border rounded">
+                        <p class="mb-1"><strong>Doctor:</strong> ${rec.doctorName}</p>
+                        <p class="mb-1"><strong>Diagnosis:</strong> ${rec.disease}</p>
+                        <p class="mb-2"><strong>Date:</strong> ${new Date(Number(rec.timestamp)).toLocaleString()}</p>
+                        <div>
+                            <strong>Prescription:</strong>
+                            ${contentHtml}
+                        </div>
+                        <p class="mt-2 mb-0 small text-muted">
+                            <strong>CID:</strong> <a href="https://ipfs.io/ipfs/${rec.cid}" target="_blank">${rec.cid}</a>
+                        </p>
+                    </div>
+                `;
+            });
+        } else {
+            section.innerHTML = '<div class="alert alert-info">No prescription history found for this patient.</div>';
+        }
+    } catch (error) {
+        console.error("Error loading history:", error);
+        section.innerHTML = `<div class="alert alert-danger"><strong>Error:</strong> ${error.message}</div>`;
+    }
+}
+</script>
 </body>
 </html>
