@@ -8,8 +8,8 @@ const path = require('path');
 const fs = require('fs');
 const crypto = require('crypto');
 const cors = require('cors'); // Added for frontend communication
-const { create } = require('ipfs-http-client'); // Added for IPFS
-const Web3 = require('web3'); // Added for Blockchain
+// const { create } = require('ipfs-http-client'); // REMOVED THIS LINE
+const { Web3 } = require('web3'); // Added for Blockchain
 require('dotenv').config();
 
 // --- INITIALIZATIONS ---
@@ -33,7 +33,7 @@ const db = mysql.createPool({
 }).promise();
 
 // --- IPFS & BLOCKCHAIN SETUP ---
-const ipfs = create({ host: 'localhost', port: '5001', protocol: 'http' });
+let ipfs; // IPFS client will be initialized asynchronously
 const web3 = new Web3('http://127.0.0.1:7545'); // URL from Ganache
 
 // ▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼
@@ -257,6 +257,21 @@ app.post('/api/hospital/login', async (req, res) => {
         res.json({ token });
     } catch (error) { res.status(500).json({ error: 'Server error during login.' }); }
 });
+app.get('/api/doctor-details/:id', authenticateToken, async (req, res) => {
+    try {
+        const { id } = req.params;
+        const [doctor] = await db.query("SELECT name, specialization FROM doctor WHERE doctor_id = ?", [id]);
+        
+        if (doctor.length === 0) {
+            return res.status(404).json({ error: 'Doctor not found.' });
+        }
+        
+        res.json(doctor[0]);
+    } catch (error) {
+        console.error('Failed to fetch doctor details:', error);
+        res.status(500).json({ error: 'Failed to fetch doctor details.' });
+    }
+});
 
 
 // --- APPOINTMENT WORKFLOW ROUTES ---
@@ -397,8 +412,26 @@ app.get('/api/history/:patientId', authenticateToken, async (req, res) => {
 // === SERVER STARTUP === //
 // ====================== //
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => {
-    console.log(`Server is running. Open http://localhost:${PORT} in your browser.`);
-});
 
-//this is vikas 
+// NEW: Asynchronous function to initialize IPFS and start the server
+const startServer = async () => {
+    try {
+        // Dynamically import the ipfs-http-client
+        const { create } = await import('ipfs-http-client');
+        
+        // Initialize the IPFS client
+        ipfs = create({ host: 'localhost', port: '5001', protocol: 'http' });
+        console.log('IPFS client initialized successfully.');
+
+        // Start the Express server
+        app.listen(PORT, () => {
+            console.log(`Server is running. Open http://localhost:${PORT} in your browser.`);
+        });
+    } catch (error) {
+        console.error('Failed to start the server:', error);
+        process.exit(1); // Exit if initialization fails
+    }
+};
+
+// Call the function to start the server
+startServer();
