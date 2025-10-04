@@ -500,7 +500,7 @@ app.get('/api/my-appointments', authenticateToken, async (req, res) => {
 
 // --- DECENTRALIZED MEDICAL RECORD & CONSENT ROUTES ---
 
-// --- [FIXED] Prescription Route ---
+// --- Prescription Route ---
 app.post('/api/prescription', authenticateToken, upload.single('file'), async (req, res) => {
     if (req.user.type !== 'doctor') return res.status(403).json({ error: 'Forbidden' });
     try {
@@ -518,8 +518,6 @@ app.post('/api/prescription', authenticateToken, upload.single('file'), async (r
         const { patientId, disease } = req.body;
         const doctorName = req.user.name;
         const timestamp = Date.now();
-
-        // --- UPDATED LOGIC ---
         const prescriptionMethod = contract.methods.addPrescription(String(patientId), doctorName, disease, cid, timestamp);
         const estimatedGas = await prescriptionMethod.estimateGas({ from: senderAddress });
         const gasPrice = await web3.eth.getGasPrice();
@@ -532,8 +530,6 @@ app.post('/api/prescription', authenticateToken, upload.single('file'), async (r
         };
         const signed = await web3.eth.accounts.signTransaction(tx, privateKey);
         const receipt = await web3.eth.sendSignedTransaction(signed.rawTransaction);
-        // --- END OF UPDATED LOGIC ---
-
         res.json({ success: true, cid: cid, transactionHash: receipt.transactionHash });
     } catch (e) { 
         console.error("API Error in /api/prescription:", e);
@@ -541,14 +537,12 @@ app.post('/api/prescription', authenticateToken, upload.single('file'), async (r
     }
 });
 
-// --- [FIXED] Consent Management Routes ---
+// --- Consent Management Routes ---
 app.post('/api/consent', authenticateToken, async (req, res) => {
     if (req.user.type !== 'patient') return res.status(403).json({ error: 'Forbidden' });
     try {
         const { granteeId, accessLevel, duration, status } = req.body;
         const patientId = req.user.id.toString();
-
-        // --- UPDATED LOGIC ---
         const consentMethod = contract.methods.manageConsent(patientId, granteeId, accessLevel, duration, status);
         const estimatedGas = await consentMethod.estimateGas({ from: senderAddress });
         const gasPrice = await web3.eth.getGasPrice();
@@ -561,8 +555,6 @@ app.post('/api/consent', authenticateToken, async (req, res) => {
         };
         const signed = await web3.eth.accounts.signTransaction(tx, privateKey);
         const receipt = await web3.eth.sendSignedTransaction(signed.rawTransaction);
-        // --- END OF UPDATED LOGIC ---
-        
         res.json({ success: true, message: `Consent status set to ${status}.`, transactionHash: receipt.transactionHash });
     } catch(e) {
         console.error("API Error in /api/consent:", e);
@@ -570,12 +562,30 @@ app.post('/api/consent', authenticateToken, async (req, res) => {
     }
 });
 
+// --- [FIXED] Consent Log Route ---
 app.get('/api/consent-log', authenticateToken, async (req, res) => {
     if (req.user.type !== 'patient') return res.status(403).json({ error: 'Forbidden' });
     try {
         const patientId = req.user.id.toString();
         const log = await contract.methods.getConsentLog(patientId).call({ from: senderAddress });
-        res.json({ log });
+
+        // FIX: Convert BigInt values to strings for JSON serialization
+        if (!log) {
+            return res.json({ log: [] });
+        }
+        
+        const serializableLog = log.map(entry => {
+            // Create a new object to avoid modifying the original (which can have read-only properties)
+            return {
+                granteeId: entry.granteeId,
+                accessLevel: entry.accessLevel,
+                duration: entry.duration.toString(),
+                status: entry.status,
+                timestamp: entry.timestamp.toString()
+            };
+        });
+
+        res.json({ log: serializableLog });
     } catch(e) {
         console.error("API Error in /api/consent-log:", e);
         res.status(500).json({ error: e.message });
@@ -583,7 +593,7 @@ app.get('/api/consent-log', authenticateToken, async (req, res) => {
 });
 
 
-// --- [UPDATED] Medical History Route with Consent Check ---
+// --- Medical History Route with Consent Check ---
 app.get('/api/history/:patientId', authenticateToken, async (req, res) => {
     if (req.user.type !== 'doctor') return res.status(403).json({ error: 'Forbidden: Only doctors can view patient history.' });
     
@@ -594,23 +604,28 @@ app.get('/api/history/:patientId', authenticateToken, async (req, res) => {
         const consentLog = await contract.methods.getConsentLog(patientId).call({ from: senderAddress });
         
         let hasValidConsent = false;
-        for (let i = consentLog.length - 1; i >= 0; i--) {
-            const consent = consentLog[i];
-            if (consent.granteeId === requesterId) {
-                if (consent.status === 'Granted') {
-                    const consentTimestamp = parseInt(consent.timestamp.toString());
-                    const duration = parseInt(consent.duration.toString());
-                    const now = Math.floor(Date.now() / 1000);
-                    if ((consentTimestamp + duration) > now) {
-                        hasValidConsent = true;
+        // The consent log can be null or undefined if there are no entries
+        if (consentLog) {
+            for (let i = consentLog.length - 1; i >= 0; i--) {
+                const consent = consentLog[i];
+                if (consent.granteeId === requesterId) {
+                    if (consent.status === 'Granted') {
+                        // Smart contract timestamps are in seconds, Date.now() is in milliseconds
+                        const consentTimestamp = parseInt(consent.timestamp.toString());
+                        const duration = parseInt(consent.duration.toString());
+                        const nowInSeconds = Math.floor(Date.now() / 1000);
+                        if ((consentTimestamp + duration) > nowInSeconds) {
+                            hasValidConsent = true;
+                        }
                     }
+                    // Break after finding the most recent record for this grantee
+                    break;
                 }
-                break;
             }
         }
         
         if (!hasValidConsent) {
-            return res.status(403).json({ error: 'Access Denied. Patient consent is required to view this medical history.' });
+            return res.status(403).json({ error: 'Access Denied. Patient consent is required or has expired.' });
         }
         
         const records = await contract.methods.getHistory(patientId).call({ from: senderAddress });

@@ -190,11 +190,43 @@
             document.getElementById('doctors-table-body').innerHTML = `<tr><td colspan="4" class="text-center text-danger">${error}</td></tr>`;
         });
 
+        // --- [FIXED] My Appointments Button Logic ---
         document.getElementById('my-appointments-btn').addEventListener('click', () => {
-           // Your existing appointment fetching logic remains unchanged
+           const appointmentsBody = document.getElementById('appointments-list-body');
+           appointmentsBody.innerHTML = '<tr><td colspan="3" class="text-center">Loading appointments...</td></tr>';
+
+           fetch('/api/my-patient-appointments', {
+               headers: { 'Authorization': `Bearer ${token}` }
+           })
+           .then(res => {
+               if (!res.ok) { throw new Error('Failed to fetch appointments.'); }
+               return res.json();
+           })
+           .then(appointments => {
+               appointmentsBody.innerHTML = ''; // Clear loading message
+               if (appointments.length === 0) {
+                   appointmentsBody.innerHTML = '<tr><td colspan="3" class="text-center">You have no appointments.</td></tr>';
+               } else {
+                   appointments.forEach(app => {
+                       const statusBadge = app.status === 'Approved' ? 'bg-success' : (app.status === 'Pending' ? 'bg-warning' : 'bg-danger');
+                       const row = `
+                           <tr>
+                               <td>Dr. ${app.doctor_name}</td>
+                               <td>${new Date(app.appointment_time).toLocaleString()}</td>
+                               <td><span class="badge ${statusBadge}">${app.status}</span></td>
+                           </tr>
+                       `;
+                       appointmentsBody.innerHTML += row;
+                   });
+               }
+           })
+           .catch(error => {
+               console.error('Error fetching appointments:', error);
+               appointmentsBody.innerHTML = `<tr><td colspan="3" class="text-center text-danger">${error.message}</td></tr>`;
+           });
         });
 
-        // --- NEW: Consent Management Logic ---
+        // --- Consent Management Logic ---
         const consentModal = document.getElementById('consentModal');
         consentModal.addEventListener('show.bs.modal', fetchConsentLog);
 
@@ -210,7 +242,6 @@
               logBody.innerHTML = '<tr><td colspan="5" class="text-center">No consent history found.</td></tr>';
               return;
             }
-            // Reverse to show most recent first
             data.log.slice().reverse().forEach(entry => {
               const statusBadge = entry.status === 'Granted' ? 'bg-success' : 'bg-danger';
               const grantTime = new Date(Number(entry.timestamp) * 1000).toLocaleString();
@@ -222,7 +253,7 @@
                   <td>${durationText}</td>
                   <td>${grantTime}</td>
                   <td>
-                    ${entry.status === 'Granted' ? `<button class="btn btn-danger btn-sm" onclick="revokeConsent('${entry.granteeId}', '${entry.accessLevel}')">Revoke</button>` : ''}
+                    ${entry.status === 'Granted' ? `<button class="btn btn-danger btn-sm revoke-btn" data-grantee-id="${entry.granteeId}" data-access-level="${entry.accessLevel}">Revoke</button>` : ''}
                   </td>
                 </tr>
               `;
@@ -253,36 +284,41 @@
             if (!res.ok) throw new Error(data.error || 'Failed to grant consent.');
             msgDiv.innerHTML = `<div class="alert alert-success">${data.message}</div>`;
             e.target.reset();
-            fetchConsentLog(); // Refresh the log
+            fetchConsentLog(); 
           } catch (err) {
             msgDiv.innerHTML = `<div class="alert alert-danger">${err.message}</div>`;
           }
         });
 
-        window.revokeConsent = async (granteeId, accessLevel) => {
-          if (!confirm(`Are you sure you want to revoke access for Grantee ID: ${granteeId}?`)) return;
-          const msgDiv = document.getElementById('consent-message');
-          msgDiv.innerHTML = '';
-           const body = {
-            granteeId: granteeId,
-            accessLevel: accessLevel, // Keep track of what was revoked
-            duration: 0, // Duration is irrelevant for revocation
-            status: 'Revoked'
-          };
-           try {
-            const res = await fetch('/api/consent', { // We use the same endpoint
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-              body: JSON.stringify(body)
-            });
-            const data = await res.json();
-            if (!res.ok) throw new Error(data.error || 'Failed to revoke consent.');
-            msgDiv.innerHTML = `<div class="alert alert-warning">${data.message}</div>`;
-            fetchConsentLog(); // Refresh the log
-          } catch (err) {
-            msgDiv.innerHTML = `<div class="alert alert-danger">${err.message}</div>`;
-          }
-        }
+        document.getElementById('consent-log-body').addEventListener('click', async (e) => {
+            if (e.target && e.target.classList.contains('revoke-btn')) {
+                const button = e.target;
+                const granteeId = button.dataset.granteeId;
+                const accessLevel = button.dataset.accessLevel;
+                if (!confirm(`Are you sure you want to revoke access for Grantee ID: ${granteeId}?`)) return;
+                const msgDiv = document.getElementById('consent-message');
+                msgDiv.innerHTML = '';
+                const body = {
+                    granteeId: granteeId,
+                    accessLevel: accessLevel, 
+                    duration: 0, 
+                    status: 'Revoked'
+                };
+                try {
+                    const res = await fetch('/api/consent', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+                    body: JSON.stringify(body)
+                    });
+                    const data = await res.json();
+                    if (!res.ok) throw new Error(data.error || 'Failed to revoke consent.');
+                    msgDiv.innerHTML = `<div class="alert alert-warning">${data.message}</div>`;
+                    fetchConsentLog();
+                } catch (err) {
+                    msgDiv.innerHTML = `<div class="alert alert-danger">${err.message}</div>`;
+                }
+            }
+        });
 
         document.getElementById('logout-btn').addEventListener('click', () => {
             localStorage.removeItem('token');

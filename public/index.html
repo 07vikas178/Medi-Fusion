@@ -4,247 +4,354 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Medi Fusion</title>
-  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
   <style>
-    /* Full CSS from before including footer fixes */
+    /*
+      NEW AESTHETIC DESIGN
+      Key Improvements:
+      - Refined Color Palette: Softer, more cohesive colors for a professional feel.
+      - CSS Variables: For easy theme management.
+      - Glassmorphism Navbar: A modern, semi-transparent blurred effect.
+      - Improved Spacing: More whitespace for a cleaner, uncluttered layout.
+      - Subtle Animations: Smoother transitions and hover effects.
+      - Modern Card Design: Gradient borders on hover for a sleek look.
+      - Enhanced Form UI: Better visual feedback on form inputs.
+    */
+    
+    :root {
+      --bg-dark: #0d1117;
+      --bg-light: #161b22;
+      --border-color: #30363d;
+      --text-primary: #e6edf3;
+      --text-secondary: #909dab;
+      --accent-primary: #58a6ff;
+      --accent-secondary: #3fb950;
+      --gradient-accent: linear-gradient(90deg, var(--accent-primary), var(--accent-secondary));
+      --shadow-color: rgba(88, 166, 255, 0.2);
+    }
+
+    /* --- General & Body Styles --- */
     body {
-      background: #111217;
-      color: #fff;
+      background: var(--bg-dark);
+      color: var(--text-primary);
       font-family: "Poppins", sans-serif;
       margin: 0;
       padding: 0;
-      transition: background-color 0.3s, color 0.3s;
+      transition: background-color 0.3s;
     }
+
     a {
       color: inherit;
       text-decoration: none;
     }
+
+    /* --- Navigation Bar --- */
     nav {
       position: fixed;
       width: 100%;
       top: 0;
       left: 0;
-      right: 0;
       z-index: 1000;
-      background: rgba(20, 20, 22, 0.97);
-      box-shadow: 0 3px 10px rgba(0, 0, 0, 0.1);
+      background: rgba(13, 17, 23, 0.7); /* Semi-transparent */
+      backdrop-filter: blur(12px); /* Glassmorphism effect */
+      border-bottom: 1px solid var(--border-color);
       display: flex;
       justify-content: center;
-      align-items: center;
-      padding: 14px 30px;
-      animation: dropDown 0.9s cubic-bezier(0.4, 2, 0.3, 1) 0.1s forwards;
+      padding: 1rem 2rem;
+      animation: dropDown 0.9s cubic-bezier(0.4, 2, 0.3, 1) forwards;
     }
+
+    @keyframes dropDown {
+      from { transform: translateY(-100%); opacity: 0; }
+      to { transform: translateY(0); opacity: 1; }
+    }
+
     nav ul {
       list-style: none;
       display: flex;
-      gap: 22px;
+      gap: 1.5rem;
       margin: 0;
       padding: 0;
     }
+
     nav ul li a {
       font-weight: 600;
       font-size: 1rem;
-      padding: 4px 14px;
-      border-radius: 8px;
+      padding: 0.5rem 0; /* Simpler padding */
       position: relative;
-      overflow: hidden;
-      transition: all 0.3s ease;
+      transition: color 0.3s ease;
     }
+    
     nav ul li a::after {
       content: "";
       position: absolute;
-      bottom: 0;
-      left: -100%;
+      bottom: -2px;
+      left: 0;
       width: 100%;
       height: 2px;
-      background: linear-gradient(90deg, #22e57f, #2e3ef7);
-      transition: left 0.3s ease;
+      background: var(--gradient-accent);
+      transform: scaleX(0);
+      transform-origin: right;
+      transition: transform 0.4s cubic-bezier(0.19, 1, 0.22, 1);
     }
-    nav ul li a:hover::after,
-    nav ul li a.active::after,
-    nav ul li a[aria-current="page"]::after {
-      left: 0;
-    }
+
     nav ul li a:hover,
     nav ul li a.active,
     nav ul li a[aria-current="page"] {
-      color: #22e57f;
+      color: var(--accent-primary);
     }
+
+    nav ul li a:hover::after,
+    nav ul li a.active::after,
+    nav ul li a[aria-current="page"]::after {
+      transform: scaleX(1);
+      transform-origin: left;
+    }
+
+    /* --- Header Section --- */
     header {
-      background: radial-gradient(circle at 40% 15%, #25303b 10%, #0d1420 80%);
-      padding: 150px 20px 100px;
+      padding: 160px 20px 120px;
       text-align: center;
-      animation: fadeInScale 1.2s ease forwards;
+      animation: fadeInScale 1.2s ease-out forwards;
+      background: var(--bg-dark);
+      position: relative;
+      overflow: hidden;
     }
+    /* Adds a subtle decorative glow */
+    header::before {
+        content: '';
+        position: absolute;
+        top: -20%;
+        left: 50%;
+        transform: translateX(-50%);
+        width: 600px;
+        height: 600px;
+        background: radial-gradient(circle, rgba(88, 166, 255, 0.1), transparent 70%);
+        z-index: 0;
+    }
+
+
     @keyframes fadeInScale {
-      from {
-        opacity: 0;
-        transform: scale(0.9);
-      }
-      to {
-        opacity: 1;
-        transform: scale(1);
-      }
+      from { opacity: 0; transform: scale(0.95); }
+      to { opacity: 1; transform: scale(1); }
     }
+
     header h1 {
-      font-weight: 900;
-      font-size: 3.6rem;
-      background: linear-gradient(92deg, #22e57f, #5d4fff);
+      font-weight: 800;
+      font-size: clamp(2.5rem, 5vw, 4rem); /* Responsive font size */
+      background: var(--gradient-accent);
       -webkit-background-clip: text;
       background-clip: text;
       -webkit-text-fill-color: transparent;
-      margin-bottom: 10px;
+      margin: 0 0 1rem;
+      position: relative;
     }
+
     header p {
-      font-size: 1.3rem;
-      margin-bottom: 20px;
-      opacity: 0.85;
-      color: #a9b9c6;
+      font-size: 1.25rem;
+      margin-bottom: 2rem;
+      color: var(--text-secondary);
+      position: relative;
     }
+
     .btn-cta {
-      background: linear-gradient(90deg, #22db78, #2e3ef7);
-      padding: 14px 40px;
-      border-radius: 28px;
+      background: var(--gradient-accent);
+      padding: 16px 45px;
+      border: none;
+      border-radius: 50px;
       font-weight: 700;
       font-size: 1.1rem;
       color: white;
-      box-shadow: 0 8px 30px #22e57f66;
+      box-shadow: 0 8px 25px var(--shadow-color);
       cursor: pointer;
-      transition: background 0.3s ease, transform 0.3s ease;
+      transition: transform 0.3s ease, box-shadow 0.3s ease;
       display: inline-block;
-    }
-    .btn-cta:hover {
-      background: linear-gradient(90deg, #2bcf6f, #4a5bff);
-      transform: scale(1.05);
-      box-shadow: 0 14px 40px #1af57f88;
-    }
-    section {
-      max-width: 1200px;
-      margin: 60px auto 80px;
-      padding: 0 20px;
-    }
-    section h2 {
-      font-weight: 900;
-      font-size: 2.8rem;
-      text-align: center;
-      margin-bottom: 40px;
-      color: #22e57f;
-      letter-spacing: 0.05em;
       position: relative;
     }
+
+    .btn-cta:hover {
+      transform: translateY(-4px) scale(1.05);
+      box-shadow: 0 12px 35px var(--shadow-color);
+    }
+
+    /* --- Content Sections --- */
+    section {
+      max-width: 1200px;
+      margin: 80px auto;
+      padding: 20px;
+    }
+
+    section h2 {
+      font-weight: 800;
+      font-size: 2.8rem;
+      text-align: center;
+      margin-bottom: 3rem;
+      color: var(--text-primary);
+      position: relative;
+    }
+
     section h2::after {
       content: "";
       display: block;
-      width: 80px;
-      height: 3px;
-      background: linear-gradient(90deg, #22e57f, #4a5bff);
-      border-radius: 12px;
-      margin: 12px auto 0;
+      width: 70px;
+      height: 4px;
+      background: var(--gradient-accent);
+      border-radius: 2px;
+      margin: 10px auto 0;
     }
+    
+    #about p {
+        font-size: 1.1rem;
+        color: var(--text-secondary);
+        text-align: center;
+        max-width: 800px;
+        margin: 0 auto;
+        line-height: 1.7;
+    }
+
+    /* --- Feature Cards Section --- */
     .feature-cards {
-      display: flex;
-      flex-wrap: wrap;
-      justify-content: center;
-      gap: 30px;
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 2rem;
     }
+
     .feature-card {
-      background: #1d2330;
-      border-radius: 20px;
-      width: 270px;
-      padding: 18px 20px 40px;
-      box-shadow: 0 3px 6px rgba(0, 0, 0, 0.3), inset 0 0 10px #35f2a888,
-        inset 0 -8px 40px #2e4aff66;
+      background: var(--bg-light);
+      border-radius: 16px;
+      padding: 2rem;
       text-align: center;
-      transition: transform 0.4s ease, box-shadow 0.4s ease;
+      border: 1px solid var(--border-color);
+      position: relative;
+      overflow: hidden;
+      transition: transform 0.3s ease, box-shadow 0.3s ease;
     }
+    
+    .feature-card::before {
+        content: '';
+        position: absolute;
+        top: 0; left: 0;
+        width: 100%;
+        height: 100%;
+        background: var(--gradient-accent);
+        opacity: 0;
+        transition: opacity 0.4s ease;
+        z-index: 0;
+    }
+    
     .feature-card:hover {
-      transform: scale(1.05);
-      box-shadow: 0 10px 35px #22e57f88, inset 0 0 18px #22e57fbb,
-        inset 0 -12px 50px #2e4affcc;
+        transform: translateY(-8px);
+        border-color: var(--accent-primary);
     }
+
     .feature-card img {
-        max-height: 145px;
-        border-radius: 18px;
-        margin-bottom: 12px;
+      max-height: 120px;
+      border-radius: 12px;
+      margin-bottom: 1.5rem;
+      filter: grayscale(30%);
+      transition: filter 0.3s ease;
     }
+    
+    .feature-card:hover img {
+        filter: grayscale(0%);
+    }
+
     .feature-card .plugin-title {
-      font-size: 1.3rem;
-      margin-bottom: 6px;
-      color: #22e57f;
-    }
-    .feature-card .plugin-desc {
-      font-weight: 500;
-      font-size: 0.95rem;
-      color: #abb8d9;
-    }
-    #contact {
-      max-width: 600px;
-      margin: 0 auto 100px;
-    }
-    #contact form label {
-      color: #3ce184;
+      font-size: 1.5rem;
       font-weight: 700;
-      margin-top: 14px;
+      margin-bottom: 0.5rem;
+      color: var(--text-primary);
+    }
+
+    .feature-card .plugin-desc {
+      font-weight: 400;
+      font-size: 1rem;
+      color: var(--text-secondary);
+      line-height: 1.6;
+    }
+
+    /* --- Contact Form Section --- */
+    #contact {
+      max-width: 700px;
+      margin: 80px auto;
+    }
+
+    #contact form label {
+      color: var(--text-secondary);
+      font-weight: 600;
+      margin-top: 1rem;
       display: block;
     }
+
     #contact form input,
     #contact form textarea {
       width: 100%;
-      padding: 12px 14px;
-      margin-top: 6px;
-      background: #111920;
-      border: 1.5px solid #19262e;
-      border-radius: 12px;
-      color: #b5c2db;
+      padding: 14px;
+      margin-top: 0.5rem;
+      background: var(--bg-light);
+      border: 1px solid var(--border-color);
+      border-radius: 8px;
+      color: var(--text-primary);
       font-size: 1rem;
       font-family: "Poppins", sans-serif;
-      transition: border-color 0.25s ease;
+      transition: border-color 0.25s ease, box-shadow 0.25s ease;
       resize: vertical;
     }
+
     #contact form input:focus,
     #contact form textarea:focus {
       outline: none;
-      border-color: #22e57f;
-      box-shadow: 0 0 8px #22e57f77;
+      border-color: var(--accent-primary);
+      box-shadow: 0 0 0 3px var(--shadow-color);
     }
+
     #contact form button {
       width: 100%;
-      margin-top: 18px;
-      padding: 14px 0;
-      background: linear-gradient(90deg, #22db78, #2e3ef7);
+      margin-top: 2rem;
+      padding: 16px 0;
+      background: var(--gradient-accent);
       border: none;
       color: white;
       font-size: 1.1rem;
       font-weight: 700;
-      border-radius: 32px;
+      border-radius: 50px;
       cursor: pointer;
-      transition: background 0.35s ease, transform 0.35s ease;
+      transition: transform 0.3s ease, box-shadow 0.3s ease;
     }
+
     #contact form button:hover {
-      background: linear-gradient(90deg, #2bcf6f, #4a5bff);
-      transform: scale(1.05);
+      transform: translateY(-3px);
+      box-shadow: 0 8px 25px var(--shadow-color);
     }
-    footer {
-        text-align: center;
-        padding: 20px;
-        margin-top: 40px;
-        background: #1d2330;
-    }
-    /* Simple message div for feedback */
+
+    /* --- Feedback Message Styling --- */
     #contact-message {
         text-align: center;
-        margin-top: 15px;
-        padding: 10px;
+        margin-top: 1.5rem;
+        padding: 12px;
         border-radius: 8px;
         display: none; /* Hidden by default */
+        font-weight: 500;
     }
     .success-message {
-        background-color: #28a745;
-        color: white;
+        background-color: rgba(63, 185, 80, 0.2);
+        color: var(--accent-secondary);
+        border: 1px solid var(--accent-secondary);
     }
     .error-message {
-        background-color: #dc3545;
-        color: white;
+        background-color: rgba(220, 53, 69, 0.2);
+        color: #f87171;
+        border: 1px solid #dc3545;
+    }
+    
+    /* --- Footer --- */
+    footer {
+        text-align: center;
+        padding: 2.5rem;
+        margin-top: 4rem;
+        background: var(--bg-light);
+        border-top: 1px solid var(--border-color);
+        color: var(--text-secondary);
     }
   </style>
 </head>
@@ -270,59 +377,59 @@
     <a href="/patient_login.html" class="btn-cta">Book an Appointment</a>
   </header>
 
-  <section id="about">
-    <h2>About Medi Fusion</h2>
-    <p>Medi Fusion is a comprehensive healthcare management platform designed to integrate patient, doctor, and administrative functionalities into a seamless experience.</p>
-  </section>
-
-  <section id="features" class="card-section">
-    <h2>Most Popular Features</h2>
-    <div class="feature-cards" id="featureCards">
-      <div class="feature-card">
-        <img src="https://cdn-icons-png.flaticon.com/512/3601/3601003.png" alt="Patient Registration" />
-        <div class="plugin-title">Online Registration</div>
-        <div class="plugin-desc">Register anywhere at any time with instant email verification.</div>
-      </div>
-       <div class="feature-card">
-        <img src="https://cdn-icons-png.flaticon.com/512/2764/2764463.png" alt="Doctor Login" />
-        <div class="plugin-title">Doctor Login</div>
-        <div class="plugin-desc">Secure and reliable doctor interface for managing appointments.</div>
-      </div>
-      <div class="feature-card">
-        <img src="https://cdn-icons-png.flaticon.com/512/3135/3135715.png" alt="Admin Dashboard" />
-        <div class="plugin-title">Admin Dashboard</div>
-        <div class="plugin-desc">Powerful admin tools for user and appointment management.</div>
-      </div>
-    </div>
-  </section>
-
-  <section id="contact">
-    <h2>Contact Us</h2>
-    <!-- Updated Form -->
-    <form id="contact-form">
-      <label for="name">Name:</label>
-      <input type="text" id="name" name="name" placeholder="Your full name" required />
-      <label for="email">Email:</label>
-      <input type="email" id="email" name="email" placeholder="Your email" required />
-      <label for="message">Message:</label>
-      <textarea id="message" name="message" rows="6" placeholder="Type your message..." required></textarea>
-      <button type="submit">Send</button>
-    </form>
-    <!-- Message display area -->
-    <div id="contact-message"></div>
-  </section>
+  <main>
+      <section id="about">
+        <h2>About Medi Fusion</h2>
+        <p>Medi Fusion is a comprehensive healthcare management platform designed to integrate patient, doctor, and administrative functionalities into a seamless, modern, and efficient experience for everyone involved.</p>
+      </section>
+    
+      <section id="features" class="card-section">
+        <h2>Most Popular Features</h2>
+        <div class="feature-cards" id="featureCards">
+          <div class="feature-card">
+            <img src="https://cdn-icons-png.flaticon.com/512/3601/3601003.png" alt="Patient Registration" />
+            <div class="plugin-title">Online Registration</div>
+            <div class="plugin-desc">Register anywhere at any time with our intuitive platform and instant email verification.</div>
+          </div>
+           <div class="feature-card">
+            <img src="https://cdn-icons-png.flaticon.com/512/2764/2764463.png" alt="Doctor Login" />
+            <div class="plugin-title">Doctor Portal</div>
+            <div class="plugin-desc">A secure and reliable interface for doctors to efficiently manage patient appointments and records.</div>
+          </div>
+          <div class="feature-card">
+            <img src="https://cdn-icons-png.flaticon.com/512/3135/3135715.png" alt="Admin Dashboard" />
+            <div class="plugin-title">Admin Dashboard</div>
+            <div class="plugin-desc">Access powerful administrative tools for comprehensive user and appointment management.</div>
+          </div>
+        </div>
+      </section>
+    
+      <section id="contact">
+        <h2>Contact Us</h2>
+        <form id="contact-form">
+          <label for="name">Name:</label>
+          <input type="text" id="name" name="name" placeholder="Your full name" required />
+          <label for="email">Email:</label>
+          <input type="email" id="email" name="email" placeholder="your.email@example.com" required />
+          <label for="message">Message:</label>
+          <textarea id="message" name="message" rows="6" placeholder="Type your message..." required></textarea>
+          <button type="submit">Send Message</button>
+        </form>
+        <div id="contact-message"></div>
+      </section>
+  </main>
 
   <footer>
-    <p>© 2025 Medi Fusion. All rights reserved.</p>
+    <p>© 2025 Medi Fusion. All Rights Reserved.</p>
   </footer>
 
   <script>
-    // --- Contact Form Submission ---
+    // --- Contact Form Submission (No changes needed here) ---
     const contactForm = document.getElementById('contact-form');
     const contactMessage = document.getElementById('contact-message');
 
     contactForm.addEventListener('submit', async (event) => {
-        event.preventDefault(); // Stop the default page reload
+        event.preventDefault();
 
         const formData = new FormData(contactForm);
         const data = Object.fromEntries(formData.entries());
@@ -338,11 +445,11 @@
 
             const result = await response.json();
 
-            contactMessage.style.display = 'block'; // Make the message div visible
+            contactMessage.style.display = 'block';
             if (response.ok) {
                 contactMessage.textContent = result.message;
                 contactMessage.className = 'success-message';
-                contactForm.reset(); // Clear the form
+                contactForm.reset();
             } else {
                 contactMessage.textContent = result.error || 'An error occurred.';
                 contactMessage.className = 'error-message';
@@ -356,4 +463,3 @@
   </script>
 </body>
 </html>
-
