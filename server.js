@@ -7,15 +7,15 @@ const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
 const crypto = require('crypto');
-const cors = require('cors'); // Added for frontend communication
-const { Web3 } = require('web3'); // Added for Blockchain
+const cors = require('cors'); 
+const { Web3 } = require('web3');
 require('dotenv').config();
 
 // --- INITIALIZATIONS ---
 const app = express();
 
 // --- MIDDLEWARE ---
-app.use(cors()); // Use CORS
+app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(express.static(path.join(__dirname, 'public')));
@@ -32,11 +32,11 @@ const db = mysql.createPool({
 }).promise();
 
 // --- IPFS & BLOCKCHAIN SETUP ---
-let ipfs; // IPFS client will be initialized asynchronously
-const web3 = new Web3('http://127.0.0.1:7545'); // URL from Ganache
+let ipfs;
+const web3 = new Web3('http://127.0.0.1:7545'); 
 
 // ▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼
-// TODO: Fill these in with the details from your blockchain deployment steps.
+// TODO: IMPORTANT! Update these details after you re-deploy the new smart contract.
 const contractABI = [
 	{
 		"inputs": [
@@ -69,6 +69,96 @@ const contractABI = [
 		"name": "addPrescription",
 		"outputs": [],
 		"stateMutability": "nonpayable",
+		"type": "function"
+	},
+	{
+		"inputs": [
+			{
+				"internalType": "string",
+				"name": "",
+				"type": "string"
+			},
+			{
+				"internalType": "uint256",
+				"name": "",
+				"type": "uint256"
+			}
+		],
+		"name": "consentLog",
+		"outputs": [
+			{
+				"internalType": "string",
+				"name": "granteeId",
+				"type": "string"
+			},
+			{
+				"internalType": "string",
+				"name": "accessLevel",
+				"type": "string"
+			},
+			{
+				"internalType": "uint256",
+				"name": "duration",
+				"type": "uint256"
+			},
+			{
+				"internalType": "string",
+				"name": "status",
+				"type": "string"
+			},
+			{
+				"internalType": "uint256",
+				"name": "timestamp",
+				"type": "uint256"
+			}
+		],
+		"stateMutability": "view",
+		"type": "function"
+	},
+	{
+		"inputs": [
+			{
+				"internalType": "string",
+				"name": "_patientId",
+				"type": "string"
+			}
+		],
+		"name": "getConsentLog",
+		"outputs": [
+			{
+				"components": [
+					{
+						"internalType": "string",
+						"name": "granteeId",
+						"type": "string"
+					},
+					{
+						"internalType": "string",
+						"name": "accessLevel",
+						"type": "string"
+					},
+					{
+						"internalType": "uint256",
+						"name": "duration",
+						"type": "uint256"
+					},
+					{
+						"internalType": "string",
+						"name": "status",
+						"type": "string"
+					},
+					{
+						"internalType": "uint256",
+						"name": "timestamp",
+						"type": "uint256"
+					}
+				],
+				"internalType": "struct MedicalRecord.Consent[]",
+				"name": "",
+				"type": "tuple[]"
+			}
+		],
+		"stateMutability": "view",
 		"type": "function"
 	},
 	{
@@ -116,6 +206,39 @@ const contractABI = [
 		"inputs": [
 			{
 				"internalType": "string",
+				"name": "_patientId",
+				"type": "string"
+			},
+			{
+				"internalType": "string",
+				"name": "_granteeId",
+				"type": "string"
+			},
+			{
+				"internalType": "string",
+				"name": "_accessLevel",
+				"type": "string"
+			},
+			{
+				"internalType": "uint256",
+				"name": "_duration",
+				"type": "uint256"
+			},
+			{
+				"internalType": "string",
+				"name": "_status",
+				"type": "string"
+			}
+		],
+		"name": "manageConsent",
+		"outputs": [],
+		"stateMutability": "nonpayable",
+		"type": "function"
+	},
+	{
+		"inputs": [
+			{
+				"internalType": "string",
 				"name": "",
 				"type": "string"
 			},
@@ -152,18 +275,17 @@ const contractABI = [
 		"type": "function"
 	}
 ];
-const contractAddress = '0x1Ff7bFf6FbE7179cCeE899d6f0Af628E82992319';
-const senderAddress = '0xf624E3dc2138a4c7F6d8DC08140732F676830FeF';
-const privateKey = '0xc820d8dd7d7df8e085943965e098a78450ee7823e473f25bac9eb3a572d2614f';
+const contractAddress = '0x8Bba6250a5f449795Facec5934D0641B22FeD790'; // The new address after deployment
+const senderAddress = '0x1211949E978611E3c4425517A5C26D08bf92Ecb3';
+const privateKey = '0x9741820d231b76449a6346b97a549ab7023897d8206086d8e2716291b9cf4dbf';
 // ▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲
 
 const contract = new web3.eth.Contract(contractABI, contractAddress);
 
-
 // --- FILE UPLOAD & JWT SETUP ---
 const uploadDir = path.join(__dirname, 'uploads');
 if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true });
-const upload = multer({ dest: uploadDir }); // Simplified for single file processing
+const upload = multer({ dest: uploadDir });
 const JWT_SECRET = process.env.JWT_SECRET || 'a-very-secure-secret-key-for-jwt';
 
 const authenticateToken = (req, res, next) => {
@@ -189,7 +311,7 @@ app.get('/', (req, res) => {
 // === API ROUTES === //
 // ================== //
 
-// --- AUTH ROUTES (Patient, Doctor, Hospital) ---
+// --- AUTH ROUTES ---
 app.post('/api/patient/register', async (req, res) => {
     try {
         const { name, email, password, contact_number, address, gender, dob } = req.body;
@@ -218,12 +340,10 @@ app.post('/api/doctor/register', async (req, res) => {
         const [existing] = await db.query('SELECT email FROM doctor WHERE email = ?', [email]);
         if (existing.length > 0) return res.status(409).json({ error: 'A doctor with this email already exists.' });
         const hashedPassword = await bcrypt.hash(password, 10);
-        // The verification_status will default to 'Pending' because of the database schema change
         const [result] = await db.query( 'INSERT INTO doctor (name, email, password, contact_number, specialization, availability_status, hospital_name) VALUES (?, ?, ?, ?, ?, ?, ?)', [name, email, hashedPassword, contact_number, specialization, availability_status, hospital_name] );
         res.status(201).json({ message: 'Doctor registered successfully! Your registration is pending approval from the hospital.', doctorId: result.insertId });
     } catch (error) { res.status(500).json({ error: 'Database error during doctor registration.' }); }
 });
-// [UPDATED] Doctor login now checks for verification status
 app.post('/api/doctor/login', async (req, res) => {
     try {
         const { email, password } = req.body;
@@ -234,14 +354,12 @@ app.post('/api/doctor/login', async (req, res) => {
         const isMatch = await bcrypt.compare(password, doctor.password);
         if (!isMatch) return res.status(401).json({ error: 'Invalid credentials' });
 
-        // --- NEW: Verification Check ---
         if (doctor.verification_status === 'Pending') {
             return res.status(403).json({ error: 'Your account is pending approval by the hospital.' });
         }
         if (doctor.verification_status === 'Rejected') {
             return res.status(403).json({ error: 'Your registration has been rejected. Please contact the hospital.' });
         }
-        // --- End of Verification Check ---
 
         const token = jwt.sign({ id: doctor.doctor_id, type: 'doctor', name: doctor.name, hospital_name: doctor.hospital_name }, JWT_SECRET, { expiresIn: '1h' });
         res.json({ token });
@@ -271,7 +389,6 @@ app.post('/api/hospital/login', async (req, res) => {
 });
 
 // --- APPOINTMENT WORKFLOW ROUTES ---
-
 app.get('/api/hospitals', authenticateToken, async (req, res) => {
     try {
         const [hospitals] = await db.query("SELECT id, hospital_name FROM hospitals ORDER BY hospital_name ASC");
@@ -342,7 +459,7 @@ app.put('/api/appointments/:id/status', authenticateToken, async (req, res) => {
     } catch (error) { res.status(500).json({ error: 'Failed to update appointment status.' }); }
 });
 
-// --- NEW: DOCTOR MANAGEMENT ROUTES (FOR HOSPITAL) ---
+// --- DOCTOR MANAGEMENT ROUTES (FOR HOSPITAL) ---
 app.get('/api/pending-doctors', authenticateToken, async (req, res) => {
     if (req.user.type !== 'hospital') return res.status(403).json({ error: 'Forbidden' });
     try {
@@ -357,17 +474,14 @@ app.get('/api/pending-doctors', authenticateToken, async (req, res) => {
         res.status(500).json({ error: 'Failed to fetch doctor requests.' });
     }
 });
-
 app.put('/api/doctors/:id/status', authenticateToken, async (req, res) => {
     if (req.user.type !== 'hospital') return res.status(403).json({ error: 'Forbidden' });
     try {
-        const { status } = req.body; // Expecting 'Approved' or 'Rejected'
+        const { status } = req.body; 
         const { id } = req.params;
-
         if (status !== 'Approved' && status !== 'Rejected') {
             return res.status(400).json({ error: 'Invalid status provided.' });
         }
-
         await db.query('UPDATE doctor SET verification_status = ? WHERE doctor_id = ?', [status, id]);
         res.json({ message: `Doctor has been ${status}.` });
     } catch (error) {
@@ -375,8 +489,6 @@ app.put('/api/doctors/:id/status', authenticateToken, async (req, res) => {
         res.status(500).json({ error: 'Failed to update doctor status.' });
     }
 });
-// --- END OF NEW ROUTES ---
-
 app.get('/api/my-appointments', authenticateToken, async (req, res) => {
     if (req.user.type !== 'doctor') return res.status(403).json({ error: 'Forbidden' });
     try {
@@ -386,8 +498,9 @@ app.get('/api/my-appointments', authenticateToken, async (req, res) => {
     } catch (error) { res.status(500).json({ error: 'Failed to fetch your appointments.' }); }
 });
 
+// --- DECENTRALIZED MEDICAL RECORD & CONSENT ROUTES ---
 
-// --- DECENTRALIZED MEDICAL RECORD ROUTES (IPFS & BLOCKCHAIN) ---
+// --- [FIXED] Prescription Route ---
 app.post('/api/prescription', authenticateToken, upload.single('file'), async (req, res) => {
     if (req.user.type !== 'doctor') return res.status(403).json({ error: 'Forbidden' });
     try {
@@ -400,42 +513,115 @@ app.post('/api/prescription', authenticateToken, upload.single('file'), async (r
         } else {
             return res.status(400).json({ error: "No prescription data (text or file) provided" });
         }
-
         const ipfsResult = await ipfs.add(prescriptionData);
         const cid = ipfsResult.cid.toString();
-        
         const { patientId, disease } = req.body;
-        const doctorName = req.user.name; 
+        const doctorName = req.user.name;
         const timestamp = Date.now();
-        
-        const txData = contract.methods.addPrescription(String(patientId), doctorName, disease, cid, timestamp).encodeABI();
-        
-        const tx = { from: senderAddress, to: contractAddress, gas: 3000000, data: txData };
+
+        // --- UPDATED LOGIC ---
+        const prescriptionMethod = contract.methods.addPrescription(String(patientId), doctorName, disease, cid, timestamp);
+        const estimatedGas = await prescriptionMethod.estimateGas({ from: senderAddress });
+        const gasPrice = await web3.eth.getGasPrice();
+        const tx = {
+            from: senderAddress,
+            to: contractAddress,
+            gas: estimatedGas,
+            gasPrice: gasPrice,
+            data: prescriptionMethod.encodeABI()
+        };
         const signed = await web3.eth.accounts.signTransaction(tx, privateKey);
         const receipt = await web3.eth.sendSignedTransaction(signed.rawTransaction);
-        
+        // --- END OF UPDATED LOGIC ---
+
         res.json({ success: true, cid: cid, transactionHash: receipt.transactionHash });
-    } catch (e) {
+    } catch (e) { 
         console.error("API Error in /api/prescription:", e);
+        res.status(500).json({ error: e.message }); 
+    }
+});
+
+// --- [FIXED] Consent Management Routes ---
+app.post('/api/consent', authenticateToken, async (req, res) => {
+    if (req.user.type !== 'patient') return res.status(403).json({ error: 'Forbidden' });
+    try {
+        const { granteeId, accessLevel, duration, status } = req.body;
+        const patientId = req.user.id.toString();
+
+        // --- UPDATED LOGIC ---
+        const consentMethod = contract.methods.manageConsent(patientId, granteeId, accessLevel, duration, status);
+        const estimatedGas = await consentMethod.estimateGas({ from: senderAddress });
+        const gasPrice = await web3.eth.getGasPrice();
+        const tx = {
+            from: senderAddress,
+            to: contractAddress,
+            gas: estimatedGas,
+            gasPrice: gasPrice,
+            data: consentMethod.encodeABI()
+        };
+        const signed = await web3.eth.accounts.signTransaction(tx, privateKey);
+        const receipt = await web3.eth.sendSignedTransaction(signed.rawTransaction);
+        // --- END OF UPDATED LOGIC ---
+        
+        res.json({ success: true, message: `Consent status set to ${status}.`, transactionHash: receipt.transactionHash });
+    } catch(e) {
+        console.error("API Error in /api/consent:", e);
         res.status(500).json({ error: e.message });
     }
 });
-app.get('/api/history/:patientId', authenticateToken, async (req, res) => {
-     try {
-        const patientId = req.params.patientId;
-        const records = await contract.methods.getHistory(patientId).call({ from: senderAddress });
 
+app.get('/api/consent-log', authenticateToken, async (req, res) => {
+    if (req.user.type !== 'patient') return res.status(403).json({ error: 'Forbidden' });
+    try {
+        const patientId = req.user.id.toString();
+        const log = await contract.methods.getConsentLog(patientId).call({ from: senderAddress });
+        res.json({ log });
+    } catch(e) {
+        console.error("API Error in /api/consent-log:", e);
+        res.status(500).json({ error: e.message });
+    }
+});
+
+
+// --- [UPDATED] Medical History Route with Consent Check ---
+app.get('/api/history/:patientId', authenticateToken, async (req, res) => {
+    if (req.user.type !== 'doctor') return res.status(403).json({ error: 'Forbidden: Only doctors can view patient history.' });
+    
+    try {
+        const patientId = req.params.patientId;
+        const requesterId = req.user.id.toString(); 
+        
+        const consentLog = await contract.methods.getConsentLog(patientId).call({ from: senderAddress });
+        
+        let hasValidConsent = false;
+        for (let i = consentLog.length - 1; i >= 0; i--) {
+            const consent = consentLog[i];
+            if (consent.granteeId === requesterId) {
+                if (consent.status === 'Granted') {
+                    const consentTimestamp = parseInt(consent.timestamp.toString());
+                    const duration = parseInt(consent.duration.toString());
+                    const now = Math.floor(Date.now() / 1000);
+                    if ((consentTimestamp + duration) > now) {
+                        hasValidConsent = true;
+                    }
+                }
+                break;
+            }
+        }
+        
+        if (!hasValidConsent) {
+            return res.status(403).json({ error: 'Access Denied. Patient consent is required to view this medical history.' });
+        }
+        
+        const records = await contract.methods.getHistory(patientId).call({ from: senderAddress });
         if (!records || records.length === 0) return res.json({ history: [] });
 
         const results = await Promise.all(records.map(async rec => {
             let data = '';
             try {
                 const chunks = [];
-                for await (const chunk of ipfs.cat(rec.cid)) {
-                    chunks.push(chunk);
-                }
-                const buffer = Buffer.concat(chunks);
-                data = buffer.toString('utf8');
+                for await (const chunk of ipfs.cat(rec.cid)) { chunks.push(chunk); }
+                data = Buffer.concat(chunks).toString('utf8');
             } catch (err) {
                 data = '[Error: Content not found on IPFS or content is a file]';
             }
