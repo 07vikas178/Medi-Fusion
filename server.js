@@ -8,7 +8,6 @@ const path = require('path');
 const fs = require('fs');
 const crypto = require('crypto');
 const cors = require('cors'); // Added for frontend communication
-// const { create } = require('ipfs-http-client'); // REMOVED THIS LINE
 const { Web3 } = require('web3'); // Added for Blockchain
 require('dotenv').config();
 
@@ -257,31 +256,34 @@ app.post('/api/hospital/login', async (req, res) => {
         res.json({ token });
     } catch (error) { res.status(500).json({ error: 'Server error during login.' }); }
 });
-app.get('/api/doctor-details/:id', authenticateToken, async (req, res) => {
+
+// --- APPOINTMENT WORKFLOW ROUTES ---
+
+// [NEW - PATIENT] Get all registered hospitals
+app.get('/api/hospitals', authenticateToken, async (req, res) => {
     try {
-        const { id } = req.params;
-        const [doctor] = await db.query("SELECT name, specialization FROM doctor WHERE doctor_id = ?", [id]);
-        
-        if (doctor.length === 0) {
-            return res.status(404).json({ error: 'Doctor not found.' });
-        }
-        
-        res.json(doctor[0]);
+        const [hospitals] = await db.query("SELECT id, hospital_name FROM hospitals ORDER BY hospital_name ASC");
+        res.json(hospitals);
     } catch (error) {
-        console.error('Failed to fetch doctor details:', error);
-        res.status(500).json({ error: 'Failed to fetch doctor details.' });
+        console.error('Failed to fetch hospitals:', error);
+        res.status(500).json({ error: 'Failed to fetch hospitals.' });
     }
 });
 
 
-// --- APPOINTMENT WORKFLOW ROUTES ---
-
-// [PATIENT] Get all available doctors
+// [UPDATED - PATIENT] Get available doctors for a specific hospital
 app.get('/api/available-doctors', authenticateToken, async (req, res) => {
     try {
-        const [doctors] = await db.query("SELECT doctor_id, name, specialization, hospital_name FROM doctor WHERE availability_status = 'Available'");
+        const { hospital } = req.query; // e.g., /api/available-doctors?hospital=City%20Hospital
+        if (!hospital) {
+            return res.status(400).json({ error: 'Hospital name is required.' });
+        }
+        const [doctors] = await db.query("SELECT doctor_id, name, specialization FROM doctor WHERE availability_status = 'Available' AND hospital_name = ?", [hospital]);
         res.json(doctors);
-    } catch (error) { res.status(500).json({ error: 'Failed to fetch available doctors.' }); }
+    } catch (error) { 
+        console.error('Failed to fetch available doctors:', error);
+        res.status(500).json({ error: 'Failed to fetch available doctors.' }); 
+    }
 });
 
 // [PATIENT] Book an appointment
@@ -332,7 +334,6 @@ app.get('/api/my-appointments', authenticateToken, async (req, res) => {
     if (req.user.type !== 'doctor') return res.status(403).json({ error: 'Forbidden' });
     try {
         const doctorId = req.user.id;
-        // CORRECTED: Added p.patient_id to the SELECT statement for frontend functionality
         const [appointments] = await db.query(`SELECT a.appointment_id, a.consulting_id, a.appointment_time, p.patient_id, p.name AS patient_name, p.gender, p.contact_number FROM appointment a JOIN patient p ON a.patient_id = p.patient_id WHERE a.doctor_id = ? AND a.status = 'Approved' ORDER BY a.appointment_time ASC`, [doctorId]);
         res.json(appointments);
     } catch (error) { res.status(500).json({ error: 'Failed to fetch your appointments.' }); }
@@ -413,25 +414,18 @@ app.get('/api/history/:patientId', authenticateToken, async (req, res) => {
 // ====================== //
 const PORT = process.env.PORT || 3000;
 
-// NEW: Asynchronous function to initialize IPFS and start the server
 const startServer = async () => {
     try {
-        // Dynamically import the ipfs-http-client
         const { create } = await import('ipfs-http-client');
-        
-        // Initialize the IPFS client
         ipfs = create({ host: 'localhost', port: '5001', protocol: 'http' });
         console.log('IPFS client initialized successfully.');
-
-        // Start the Express server
         app.listen(PORT, () => {
             console.log(`Server is running. Open http://localhost:${PORT} in your browser.`);
         });
     } catch (error) {
         console.error('Failed to start the server:', error);
-        process.exit(1); // Exit if initialization fails
+        process.exit(1);
     }
 };
 
-// Call the function to start the server
 startServer();

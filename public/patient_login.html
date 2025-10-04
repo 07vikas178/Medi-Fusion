@@ -112,11 +112,11 @@
             return response.json();
         })
         .then(data => {
-            if (data.token) {
-                localStorage.setItem('token', data.token);
-                // Redirect to the dashboard upon successful login
-                window.location.href = '/patient_dashboard.html';
-            }
+             if (data.token) {
+        localStorage.setItem('token', data.token);
+        // Redirect to the NEW hospital selection page
+        window.location.href = '/hospitals_list.html'; // <<< UPDATED LINE
+    }
         })
         .catch(error => {
             errorMessage.textContent = error.message;
