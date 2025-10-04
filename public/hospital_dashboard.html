@@ -13,13 +13,17 @@
         .btn-approve { background-color: #28a745; border-color: #28a745; }
         .btn-reject { background-color: #dc3545; border-color: #dc3545; }
         .status-badge { font-size: 0.9em; }
+        .header-actions { gap: 10px; }
     </style>
 </head>
 <body>
     <div class="container py-5">
         <header class="dashboard-header d-flex justify-content-between align-items-center mb-4">
             <h1 id="hospital-name">Hospital Dashboard</h1>
-            <button id="logout-btn" class="btn btn-outline-danger">Logout</button>
+            <div class="header-actions d-flex">
+                <button class="btn btn-info text-white" data-bs-toggle="modal" data-bs-target="#doctorManagementModal">Doctor Management</button>
+                <button id="logout-btn" class="btn btn-outline-danger">Logout</button>
+            </div>
         </header>
 
         <div class="card">
@@ -38,14 +42,42 @@
                             </tr>
                         </thead>
                         <tbody id="appointments-table-body">
-                            <!-- Data will be loaded here via JS -->
-                        </tbody>
+                            </tbody>
                     </table>
                 </div>
             </div>
         </div>
     </div>
 
+    <div class="modal fade" id="doctorManagementModal" tabindex="-1" aria-labelledby="doctorManagementModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-xl modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="doctorManagementModalLabel">Pending Doctor Registrations</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="table-responsive">
+                        <table class="table">
+                            <thead>
+                                <tr>
+                                    <th>Name</th>
+                                    <th>Specialization</th>
+                                    <th>Email</th>
+                                    <th>Contact</th>
+                                    <th>Action</th>
+                                </tr>
+                            </thead>
+                            <tbody id="pending-doctors-body">
+                                </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script>
         document.addEventListener('DOMContentLoaded', function() {
             const token = localStorage.getItem('token');
@@ -56,11 +88,13 @@
              try {
                 const payload = JSON.parse(atob(token.split('.')[1]));
                 document.getElementById('hospital-name').textContent = `${payload.name} Dashboard`;
-            } catch (e) {
-                console.error("Failed to decode token:", e);
-            }
+            } catch (e) { console.error("Failed to decode token:", e); }
 
             loadAppointments();
+
+            // Load pending doctors when the modal is about to be shown
+            const doctorModal = document.getElementById('doctorManagementModal');
+            doctorModal.addEventListener('show.bs.modal', loadPendingDoctors);
 
             document.getElementById('logout-btn').addEventListener('click', () => {
                 localStorage.removeItem('token');
@@ -94,8 +128,8 @@
                         let actionButtons = '';
                         if (app.status.toLowerCase() === 'pending') {
                             actionButtons = `
-                                <button onclick="updateStatus(${app.appointment_id}, 'Approved')" class="btn btn-approve btn-sm text-white">Approve</button>
-                                <button onclick="updateStatus(${app.appointment_id}, 'Rejected')" class="btn btn-reject btn-sm text-white">Reject</button>
+                                <button onclick="updateAppointmentStatus(${app.appointment_id}, 'Approved')" class="btn btn-approve btn-sm text-white">Approve</button>
+                                <button onclick="updateAppointmentStatus(${app.appointment_id}, 'Rejected')" class="btn btn-reject btn-sm text-white">Reject</button>
                             `;
                         }
                         
@@ -113,7 +147,7 @@
             });
         }
 
-        function updateStatus(appointmentId, newStatus) {
+        function updateAppointmentStatus(appointmentId, newStatus) {
             const token = localStorage.getItem('token');
             fetch(`/api/appointments/${appointmentId}/status`, {
                 method: 'PUT',
@@ -125,7 +159,6 @@
             })
             .then(response => response.json())
             .then(data => {
-                // Visually update the row without a full reload
                 const row = document.getElementById(`row-${appointmentId}`);
                 if (row) {
                     const statusCell = row.querySelector('.status-cell');
@@ -134,13 +167,80 @@
                         ? `<span class="badge bg-success status-badge">Approved</span>`
                         : `<span class="badge bg-danger status-badge">Rejected</span>`;
                     statusCell.innerHTML = newBadge;
-                    actionCell.innerHTML = ''; // Remove buttons
+                    actionCell.innerHTML = '';
                 }
                 alert(data.message);
             })
             .catch(error => {
                 console.error('Error updating status:', error);
                 alert('Failed to update status.');
+            });
+        }
+
+        // --- NEW FUNCTIONS FOR DOCTOR MANAGEMENT ---
+        function loadPendingDoctors() {
+            const token = localStorage.getItem('token');
+            const tableBody = document.getElementById('pending-doctors-body');
+            tableBody.innerHTML = '<tr><td colspan="5" class="text-center">Loading...</td></tr>';
+
+            fetch('/api/pending-doctors', {
+                headers: { 'Authorization': `Bearer ${token}` }
+            })
+            .then(response => response.json())
+            .then(doctors => {
+                tableBody.innerHTML = '';
+                if (doctors.length === 0) {
+                    tableBody.innerHTML = '<tr><td colspan="5" class="text-center p-4">No pending doctor registrations.</td></tr>';
+                } else {
+                    doctors.forEach(doc => {
+                        const row = document.createElement('tr');
+                        row.setAttribute('id', `doctor-row-${doc.doctor_id}`);
+                        row.innerHTML = `
+                            <td>${doc.name}</td>
+                            <td>${doc.specialization}</td>
+                            <td>${doc.email}</td>
+                            <td>${doc.contact_number}</td>
+                            <td>
+                                <button onclick="updateDoctorStatus(${doc.doctor_id}, 'Approved')" class="btn btn-approve btn-sm text-white">Approve</button>
+                                <button onclick="updateDoctorStatus(${doc.doctor_id}, 'Rejected')" class="btn btn-reject btn-sm text-white">Reject</button>
+                            </td>
+                        `;
+                        tableBody.appendChild(row);
+                    });
+                }
+            })
+            .catch(error => {
+                 tableBody.innerHTML = '<tr><td colspan="5" class="text-center text-danger">Failed to load requests.</td></tr>';
+            });
+        }
+
+        function updateDoctorStatus(doctorId, newStatus) {
+            const token = localStorage.getItem('token');
+            fetch(`/api/doctors/${doctorId}/status`, {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`
+                },
+                body: JSON.stringify({ status: newStatus })
+            })
+            .then(response => response.json())
+            .then(data => {
+                // Remove the row from the modal for immediate feedback
+                const row = document.getElementById(`doctor-row-${doctorId}`);
+                if (row) {
+                    row.remove();
+                }
+                // If the modal is empty now, show the "empty" message
+                 const tableBody = document.getElementById('pending-doctors-body');
+                 if(tableBody.children.length === 0) {
+                     tableBody.innerHTML = '<tr><td colspan="5" class="text-center p-4">No pending doctor registrations.</td></tr>';
+                 }
+                alert(data.message);
+            })
+            .catch(error => {
+                console.error('Error updating doctor status:', error);
+                alert('Failed to update doctor status.');
             });
         }
     </script>

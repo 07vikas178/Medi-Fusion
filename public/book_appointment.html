@@ -125,15 +125,22 @@
 
         const urlParams = new URLSearchParams(window.location.search);
         const doctorId = urlParams.get('doctor_id');
+        // --- NEW: Get the hospital name from the URL ---
+        const hospitalName = urlParams.get('hospital');
         
         const doctorNameEl = document.getElementById('doctor-name');
         const doctorSpecEl = document.getElementById('doctor-specialization');
         const appointmentForm = document.getElementById('appointment-form');
         const errorMessageEl = document.getElementById('error-message');
+        const backLink = document.querySelector('.back-link');
+
+        // --- NEW: Update the back link to include the hospital name ---
+        if (hospitalName) {
+            backLink.href = `/patient_dashboard.html?hospital=${hospitalName}`;
+        }
 
         async function fetchDoctorDetails() {
             try {
-                // *** THIS IS THE CORRECTED LINE ***
                 const response = await fetch(`/api/doctor-details/${doctorId}`, {
                     headers: { 'Authorization': `Bearer ${token}` }
                 });
@@ -141,7 +148,7 @@
                     throw new Error('Failed to fetch doctor details');
                 }
                 const doctor = await response.json();
-                doctorNameEl.textContent = doctor.name;
+                doctorNameEl.textContent = "Dr. " + doctor.name;
                 doctorSpecEl.textContent = doctor.specialization;
             } catch (error) {
                 console.error('Error:', error);
@@ -176,7 +183,13 @@
                 }
                 
                 alert(result.message);
-                window.location.href = '/patient_dashboard.html';
+                
+                // --- MODIFIED: Redirect back to the dashboard WITH the hospital name ---
+                if (hospitalName) {
+                    window.location.href = `/patient_dashboard.html?hospital=${hospitalName}`;
+                } else {
+                    window.location.href = '/patient_dashboard.html'; // Fallback
+                }
 
             } catch (error) {
                 console.error('Booking Error:', error);
@@ -193,4 +206,3 @@
     </script>
 </body>
 </html>
-

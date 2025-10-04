@@ -218,18 +218,31 @@ app.post('/api/doctor/register', async (req, res) => {
         const [existing] = await db.query('SELECT email FROM doctor WHERE email = ?', [email]);
         if (existing.length > 0) return res.status(409).json({ error: 'A doctor with this email already exists.' });
         const hashedPassword = await bcrypt.hash(password, 10);
+        // The verification_status will default to 'Pending' because of the database schema change
         const [result] = await db.query( 'INSERT INTO doctor (name, email, password, contact_number, specialization, availability_status, hospital_name) VALUES (?, ?, ?, ?, ?, ?, ?)', [name, email, hashedPassword, contact_number, specialization, availability_status, hospital_name] );
-        res.status(201).json({ message: 'Doctor registered successfully!', doctorId: result.insertId });
+        res.status(201).json({ message: 'Doctor registered successfully! Your registration is pending approval from the hospital.', doctorId: result.insertId });
     } catch (error) { res.status(500).json({ error: 'Database error during doctor registration.' }); }
 });
+// [UPDATED] Doctor login now checks for verification status
 app.post('/api/doctor/login', async (req, res) => {
     try {
         const { email, password } = req.body;
         const [rows] = await db.query('SELECT * FROM doctor WHERE email = ?', [email]);
         if (rows.length === 0) return res.status(401).json({ error: 'Invalid credentials' });
+        
         const doctor = rows[0];
         const isMatch = await bcrypt.compare(password, doctor.password);
         if (!isMatch) return res.status(401).json({ error: 'Invalid credentials' });
+
+        // --- NEW: Verification Check ---
+        if (doctor.verification_status === 'Pending') {
+            return res.status(403).json({ error: 'Your account is pending approval by the hospital.' });
+        }
+        if (doctor.verification_status === 'Rejected') {
+            return res.status(403).json({ error: 'Your registration has been rejected. Please contact the hospital.' });
+        }
+        // --- End of Verification Check ---
+
         const token = jwt.sign({ id: doctor.doctor_id, type: 'doctor', name: doctor.name, hospital_name: doctor.hospital_name }, JWT_SECRET, { expiresIn: '1h' });
         res.json({ token });
     } catch (error) { res.status(500).json({ error: 'Server error during login.' }); }
@@ -259,7 +272,6 @@ app.post('/api/hospital/login', async (req, res) => {
 
 // --- APPOINTMENT WORKFLOW ROUTES ---
 
-// [NEW - PATIENT] Get all registered hospitals
 app.get('/api/hospitals', authenticateToken, async (req, res) => {
     try {
         const [hospitals] = await db.query("SELECT id, hospital_name FROM hospitals ORDER BY hospital_name ASC");
@@ -269,12 +281,9 @@ app.get('/api/hospitals', authenticateToken, async (req, res) => {
         res.status(500).json({ error: 'Failed to fetch hospitals.' });
     }
 });
-
-
-// [UPDATED - PATIENT] Get available doctors for a specific hospital
 app.get('/api/available-doctors', authenticateToken, async (req, res) => {
     try {
-        const { hospital } = req.query; // e.g., /api/available-doctors?hospital=City%20Hospital
+        const { hospital } = req.query; 
         if (!hospital) {
             return res.status(400).json({ error: 'Hospital name is required.' });
         }
@@ -285,8 +294,19 @@ app.get('/api/available-doctors', authenticateToken, async (req, res) => {
         res.status(500).json({ error: 'Failed to fetch available doctors.' }); 
     }
 });
-
-// [PATIENT] Book an appointment
+app.get('/api/doctor-details/:id', authenticateToken, async (req, res) => {
+    try {
+        const { id } = req.params;
+        const [doctor] = await db.query("SELECT name, specialization FROM doctor WHERE doctor_id = ?", [id]);
+        if (doctor.length === 0) {
+            return res.status(404).json({ error: 'Doctor not found.' });
+        }
+        res.json(doctor[0]);
+    } catch (error) {
+        console.error('Failed to fetch doctor details:', error);
+        res.status(500).json({ error: 'Failed to fetch doctor details.' });
+    }
+});
 app.post('/api/appointments', authenticateToken, async (req, res) => {
     if (req.user.type !== 'patient') return res.status(403).json({ error: 'Forbidden' });
     try {
@@ -297,8 +317,6 @@ app.post('/api/appointments', authenticateToken, async (req, res) => {
         res.status(201).json({ message: 'Appointment booked successfully! Awaiting hospital approval.', consulting_id });
     } catch (error) { res.status(500).json({ error: 'Failed to book appointment' }); }
 });
-
-// [PATIENT] Get their own appointments
 app.get('/api/my-patient-appointments', authenticateToken, async (req, res) => {
     if (req.user.type !== 'patient') return res.status(403).json({ error: 'Forbidden' });
     try {
@@ -306,30 +324,59 @@ app.get('/api/my-patient-appointments', authenticateToken, async (req, res) => {
         res.json(appointments);
     } catch (error) { res.status(500).json({ error: 'Failed to fetch your appointments' }); }
 });
-
-
-// [HOSPITAL] Get all appointments for that hospital
 app.get('/api/all-appointments', authenticateToken, async (req, res) => {
     if (req.user.type !== 'hospital') return res.status(403).json({ error: 'Forbidden' });
     try {
-        const hospitalName = req.user.name; // Get hospital name from JWT
+        const hospitalName = req.user.name; 
         const [appointments] = await db.query(`SELECT a.*, p.name AS patient_name, d.name AS doctor_name FROM appointment a JOIN patient p ON a.patient_id = p.patient_id JOIN doctor d ON a.doctor_id = d.doctor_id WHERE d.hospital_name = ? ORDER BY a.appointment_time DESC`, [hospitalName]);
         res.json(appointments);
     } catch (error) { res.status(500).json({ error: 'Failed to fetch appointments.' }); }
 });
-
-// [HOSPITAL] Update appointment status
 app.put('/api/appointments/:id/status', authenticateToken, async (req, res) => {
     if (req.user.type !== 'hospital') return res.status(403).json({ error: 'Forbidden' });
     try {
-        const { status } = req.body; // "Approved" or "Rejected"
+        const { status } = req.body;
         const { id } = req.params;
         await db.query('UPDATE appointment SET status = ? WHERE appointment_id = ?', [status, id]);
         res.json({ message: `Appointment ${id} has been ${status}.` });
     } catch (error) { res.status(500).json({ error: 'Failed to update appointment status.' }); }
 });
 
-// [DOCTOR] Get approved appointments for the logged-in doctor
+// --- NEW: DOCTOR MANAGEMENT ROUTES (FOR HOSPITAL) ---
+app.get('/api/pending-doctors', authenticateToken, async (req, res) => {
+    if (req.user.type !== 'hospital') return res.status(403).json({ error: 'Forbidden' });
+    try {
+        const hospitalName = req.user.name;
+        const [doctors] = await db.query(
+            "SELECT doctor_id, name, specialization, email, contact_number FROM doctor WHERE hospital_name = ? AND verification_status = 'Pending'",
+            [hospitalName]
+        );
+        res.json(doctors);
+    } catch (error) {
+        console.error('Failed to fetch pending doctors:', error);
+        res.status(500).json({ error: 'Failed to fetch doctor requests.' });
+    }
+});
+
+app.put('/api/doctors/:id/status', authenticateToken, async (req, res) => {
+    if (req.user.type !== 'hospital') return res.status(403).json({ error: 'Forbidden' });
+    try {
+        const { status } = req.body; // Expecting 'Approved' or 'Rejected'
+        const { id } = req.params;
+
+        if (status !== 'Approved' && status !== 'Rejected') {
+            return res.status(400).json({ error: 'Invalid status provided.' });
+        }
+
+        await db.query('UPDATE doctor SET verification_status = ? WHERE doctor_id = ?', [status, id]);
+        res.json({ message: `Doctor has been ${status}.` });
+    } catch (error) {
+        console.error('Failed to update doctor status:', error);
+        res.status(500).json({ error: 'Failed to update doctor status.' });
+    }
+});
+// --- END OF NEW ROUTES ---
+
 app.get('/api/my-appointments', authenticateToken, async (req, res) => {
     if (req.user.type !== 'doctor') return res.status(403).json({ error: 'Forbidden' });
     try {
@@ -341,15 +388,13 @@ app.get('/api/my-appointments', authenticateToken, async (req, res) => {
 
 
 // --- DECENTRALIZED MEDICAL RECORD ROUTES (IPFS & BLOCKCHAIN) ---
-
-// [DOCTOR] Adds a new prescription to IPFS and the blockchain
 app.post('/api/prescription', authenticateToken, upload.single('file'), async (req, res) => {
     if (req.user.type !== 'doctor') return res.status(403).json({ error: 'Forbidden' });
     try {
         let prescriptionData;
         if (req.file) {
             prescriptionData = fs.readFileSync(req.file.path);
-            fs.unlinkSync(req.file.path); // Clean up the temporary file
+            fs.unlinkSync(req.file.path);
         } else if (req.body.text) {
             prescriptionData = Buffer.from(req.body.text);
         } else {
@@ -360,7 +405,7 @@ app.post('/api/prescription', authenticateToken, upload.single('file'), async (r
         const cid = ipfsResult.cid.toString();
         
         const { patientId, disease } = req.body;
-        const doctorName = req.user.name; // Get doctor's name from the secure token
+        const doctorName = req.user.name; 
         const timestamp = Date.now();
         
         const txData = contract.methods.addPrescription(String(patientId), doctorName, disease, cid, timestamp).encodeABI();
@@ -375,8 +420,6 @@ app.post('/api/prescription', authenticateToken, upload.single('file'), async (r
         res.status(500).json({ error: e.message });
     }
 });
-
-// [DOCTOR/PATIENT] Retrieves a patient's entire medical history from the blockchain
 app.get('/api/history/:patientId', authenticateToken, async (req, res) => {
      try {
         const patientId = req.params.patientId;

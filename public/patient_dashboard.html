@@ -17,16 +17,21 @@
     .card-title { font-weight: 600; }
     #hospital-name-display { color: #007bff; }
     .back-link { font-weight: 600; }
+    .header-actions { gap: 10px; }
   </style>
 </head>
 <body>
   <div class="container py-5">
-    <div class="dashboard-header d-flex justify-content-between align-items-center mb-4">
+    <div class="dashboard-header d-flex justify-content-between align-items-start mb-4">
       <div>
           <h1>Patient Dashboard</h1>
           <p id="welcome-message" class="text-secondary"></p>
       </div>
-      <button id="logout-btn" class="btn btn-danger">Logout</button>
+      <div class="header-actions d-flex align-items-center">
+          <button class="btn btn-outline-secondary">View History</button>
+          <button id="my-appointments-btn" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#appointmentsModal">My Appointments</button>
+          <button id="logout-btn" class="btn btn-danger">Logout</button>
+      </div>
     </div>
 
     <div class="card shadow-sm">
@@ -54,6 +59,31 @@
     </div>
   </div>
 
+  <div class="modal fade" id="appointmentsModal" tabindex="-1" aria-labelledby="appointmentsModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-centered">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title" id="appointmentsModalLabel">My Appointments</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body">
+          <table class="table">
+            <thead>
+              <tr>
+                <th scope="col">Doctor Name</th>
+                <th scope="col">Appointment Time</th>
+                <th scope="col">Status</th>
+              </tr>
+            </thead>
+            <tbody id="appointments-list-body">
+              </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
   <script>
     document.addEventListener('DOMContentLoaded', function() {
         const token = localStorage.getItem('token');
@@ -62,7 +92,6 @@
             return;
         }
 
-        // --- NEW: Get hospital name from URL ---
         const params = new URLSearchParams(window.location.search);
         const hospitalName = params.get('hospital');
 
@@ -72,12 +101,9 @@
             return;
         }
         
-        // Decode URI component to handle names with spaces, e.g., "City%20Hospital" -> "City Hospital"
         const decodedHospitalName = decodeURIComponent(hospitalName);
         document.getElementById('hospital-name-display').textContent = decodedHospitalName;
 
-
-        // Decode JWT to get user's name
         try {
             const payload = JSON.parse(atob(token.split('.')[1]));
             document.getElementById('welcome-message').textContent = `Welcome, ${payload.name}!`;
@@ -87,7 +113,6 @@
             window.location.href = '/patient_login.html';
         }
 
-        // --- UPDATED: Fetch call now includes the hospital query parameter ---
         fetch(`/api/available-doctors?hospital=${hospitalName}`, {
             headers: { 'Authorization': `Bearer ${token}` }
         })
@@ -99,20 +124,20 @@
         })
         .then(doctors => {
             const tableBody = document.getElementById('doctors-table-body');
-            tableBody.innerHTML = ''; // Clear existing rows
+            tableBody.innerHTML = '';
             if (doctors.length === 0) {
                 tableBody.innerHTML = '<tr><td colspan="4" class="text-center">No doctors are currently available at this hospital.</td></tr>';
             } else {
                 doctors.forEach(doctor => {
-                    // Note: We don't need to display the hospital name in the table anymore
-                    // since it's already in the header. The status is always "Available".
+                    // --- THIS IS THE MODIFIED LINE ---
+                    // It now passes both doctor_id and the hospitalName to the booking page
                     const row = `
                         <tr>
                             <td>Dr. ${doctor.name}</td>
                             <td>${doctor.specialization}</td>
                             <td><span class="badge bg-success">Available</span></td>
                             <td>
-                                <a href="/book_appointment.html?doctor_id=${doctor.doctor_id}" class="btn btn-book btn-sm text-white">Book Appointment</a>
+                                <a href="/book_appointment.html?doctor_id=${doctor.doctor_id}&hospital=${hospitalName}" class="btn btn-book btn-sm text-white">Book Appointment</a>
                             </td>
                         </tr>
                     `;
@@ -124,6 +149,55 @@
             console.error('Error fetching doctors:', error);
             const tableBody = document.getElementById('doctors-table-body');
             tableBody.innerHTML = `<tr><td colspan="4" class="text-center text-danger">${error.message}</td></tr>`;
+        });
+
+        document.getElementById('my-appointments-btn').addEventListener('click', () => {
+            const appointmentsBody = document.getElementById('appointments-list-body');
+            appointmentsBody.innerHTML = '<tr><td colspan="3" class="text-center">Loading...</td></tr>';
+
+            fetch('/api/my-patient-appointments', {
+                headers: { 'Authorization': `Bearer ${token}` }
+            })
+            .then(response => response.json())
+            .then(appointments => {
+                appointmentsBody.innerHTML = '';
+                if (appointments.length === 0) {
+                    appointmentsBody.innerHTML = '<tr><td colspan="3" class="text-center">You have no appointments.</td></tr>';
+                    return;
+                }
+
+                appointments.forEach(app => {
+                    let statusBadge;
+                    switch (app.status.toLowerCase()) {
+                        case 'approved':
+                            statusBadge = `<span class="badge bg-success">${app.status}</span>`;
+                            break;
+                        case 'rejected':
+                            statusBadge = `<span class="badge bg-danger">${app.status}</span>`;
+                            break;
+                        default:
+                            statusBadge = `<span class="badge bg-warning text-dark">${app.status}</span>`;
+                    }
+                    
+                    const appTime = new Date(app.appointment_time).toLocaleString('en-US', {
+                        year: 'numeric', month: 'short', day: 'numeric',
+                        hour: '2-digit', minute: '2-digit', hour12: true
+                    });
+                    
+                    const row = `
+                        <tr>
+                            <td>Dr. ${app.doctor_name}</td>
+                            <td>${appTime}</td>
+                            <td>${statusBadge}</td>
+                        </tr>
+                    `;
+                    appointmentsBody.innerHTML += row;
+                });
+            })
+            .catch(error => {
+                console.error('Error fetching appointments:', error);
+                appointmentsBody.innerHTML = '<tr><td colspan="3" class="text-center text-danger">Could not load appointments.</td></tr>';
+            });
         });
 
         document.getElementById('logout-btn').addEventListener('click', () => {
