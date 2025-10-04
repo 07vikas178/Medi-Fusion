@@ -275,9 +275,9 @@ const contractABI = [
 		"type": "function"
 	}
 ];
-const contractAddress = '0x8Bba6250a5f449795Facec5934D0641B22FeD790'; // The new address after deployment
-const senderAddress = '0x1211949E978611E3c4425517A5C26D08bf92Ecb3';
-const privateKey = '0x9741820d231b76449a6346b97a549ab7023897d8206086d8e2716291b9cf4dbf';
+const contractAddress = '0xA8bF3F883D60D45Ee0cD9B1566E4DFa36104BBf3'; // The new address after deployment
+const senderAddress = '0x68a04fd4E12e1f111b1E276C9A12fF39Ae6D6B42';
+const privateKey = '0xceeaa6cd7eef19c4880963f57086379e685d4a8853b3574f7632e43c3f69453c';
 // ▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲
 
 const contract = new web3.eth.Contract(contractABI, contractAddress);
@@ -500,6 +500,39 @@ app.get('/api/my-appointments', authenticateToken, async (req, res) => {
 
 // --- DECENTRALIZED MEDICAL RECORD & CONSENT ROUTES ---
 
+// --- [NEW] Patient Prescription Route ---
+app.get('/api/my-prescriptions', authenticateToken, async (req, res) => {
+    if (req.user.type !== 'patient') return res.status(403).json({ error: 'Forbidden' });
+    try {
+        const patientId = req.user.id.toString();
+        const records = await contract.methods.getHistory(patientId).call({ from: senderAddress });
+        if (!records || records.length === 0) {
+            return res.json([]); // Return empty array if no records
+        }
+        const results = await Promise.all(records.map(async rec => {
+            let data = '';
+            try {
+                const chunks = [];
+                for await (const chunk of ipfs.cat(rec.cid)) { chunks.push(chunk); }
+                data = Buffer.concat(chunks).toString('utf8');
+            } catch (err) {
+                console.error(`IPFS fetch error for CID ${rec.cid}:`, err);
+                data = '[Error: Could not retrieve prescription content from IPFS.]';
+            }
+            return {
+                doctorName: rec.doctorName,
+                disease: rec.disease,
+                timestamp: rec.timestamp.toString(),
+                data: data,
+            };
+        }));
+        res.json(results.reverse()); // Show most recent first
+    } catch (e) {
+        console.error("API Error in /api/my-prescriptions:", e);
+        res.status(500).json({ error: e.message });
+    }
+});
+
 // --- Prescription Route ---
 app.post('/api/prescription', authenticateToken, upload.single('file'), async (req, res) => {
     if (req.user.type !== 'doctor') return res.status(403).json({ error: 'Forbidden' });
@@ -562,20 +595,16 @@ app.post('/api/consent', authenticateToken, async (req, res) => {
     }
 });
 
-// --- [FIXED] Consent Log Route ---
 app.get('/api/consent-log', authenticateToken, async (req, res) => {
     if (req.user.type !== 'patient') return res.status(403).json({ error: 'Forbidden' });
     try {
         const patientId = req.user.id.toString();
         const log = await contract.methods.getConsentLog(patientId).call({ from: senderAddress });
-
-        // FIX: Convert BigInt values to strings for JSON serialization
         if (!log) {
             return res.json({ log: [] });
         }
         
         const serializableLog = log.map(entry => {
-            // Create a new object to avoid modifying the original (which can have read-only properties)
             return {
                 granteeId: entry.granteeId,
                 accessLevel: entry.accessLevel,
@@ -584,7 +613,6 @@ app.get('/api/consent-log', authenticateToken, async (req, res) => {
                 timestamp: entry.timestamp.toString()
             };
         });
-
         res.json({ log: serializableLog });
     } catch(e) {
         console.error("API Error in /api/consent-log:", e);
@@ -604,13 +632,11 @@ app.get('/api/history/:patientId', authenticateToken, async (req, res) => {
         const consentLog = await contract.methods.getConsentLog(patientId).call({ from: senderAddress });
         
         let hasValidConsent = false;
-        // The consent log can be null or undefined if there are no entries
         if (consentLog) {
             for (let i = consentLog.length - 1; i >= 0; i--) {
                 const consent = consentLog[i];
                 if (consent.granteeId === requesterId) {
                     if (consent.status === 'Granted') {
-                        // Smart contract timestamps are in seconds, Date.now() is in milliseconds
                         const consentTimestamp = parseInt(consent.timestamp.toString());
                         const duration = parseInt(consent.duration.toString());
                         const nowInSeconds = Math.floor(Date.now() / 1000);
@@ -618,7 +644,6 @@ app.get('/api/history/:patientId', authenticateToken, async (req, res) => {
                             hasValidConsent = true;
                         }
                     }
-                    // Break after finding the most recent record for this grantee
                     break;
                 }
             }

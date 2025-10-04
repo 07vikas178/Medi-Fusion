@@ -18,6 +18,7 @@
     #hospital-name-display { color: #007bff; }
     .back-link { font-weight: 600; }
     .header-actions { gap: 10px; }
+    .prescription-card { white-space: pre-wrap; background-color: #e9ecef; }
   </style>
 </head>
 <body>
@@ -28,6 +29,7 @@
           <p id="welcome-message" class="text-secondary"></p>
       </div>
       <div class="header-actions d-flex align-items-center">
+          <button id="view-prescriptions-btn" class="btn btn-success" data-bs-toggle="modal" data-bs-target="#prescriptionsModal">View Prescriptions</button>
           <button id="manage-consent-btn" class="btn btn-info text-white" data-bs-toggle="modal" data-bs-target="#consentModal">Manage Consent 🔐</button>
           <button id="my-appointments-btn" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#appointmentsModal">My Appointments</button>
           <button id="logout-btn" class="btn btn-danger">Logout</button>
@@ -54,6 +56,21 @@
             <tbody id="doctors-table-body">
               </tbody>
           </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal fade" id="prescriptionsModal" tabindex="-1">
+    <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title">My Prescriptions</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <div class="accordion" id="prescriptionsAccordion">
+            </div>
         </div>
       </div>
     </div>
@@ -111,7 +128,6 @@
               </form>
               <div id="consent-message" class="mt-3"></div>
             </div>
-
             <div class="col-md-8">
               <h4>Consent History</h4>
               <div class="table-responsive" style="max-height: 50vh;">
@@ -125,9 +141,7 @@
                       <th>Action</th>
                     </tr>
                   </thead>
-                  <tbody id="consent-log-body">
-                    <tr><td colspan="5" class="text-center">Loading consent log...</td></tr>
-                  </tbody>
+                  <tbody id="consent-log-body"></tbody>
                 </table>
               </div>
             </div>
@@ -189,12 +203,52 @@
         .catch(error => {
             document.getElementById('doctors-table-body').innerHTML = `<tr><td colspan="4" class="text-center text-danger">${error}</td></tr>`;
         });
+        
+        // --- [NEW] View Prescriptions Button Logic ---
+        document.getElementById('view-prescriptions-btn').addEventListener('click', () => {
+            const accordion = document.getElementById('prescriptionsAccordion');
+            accordion.innerHTML = '<p class="text-center">Loading prescriptions...</p>';
 
-        // --- [FIXED] My Appointments Button Logic ---
+            fetch('/api/my-prescriptions', {
+                headers: { 'Authorization': `Bearer ${token}` }
+            })
+            .then(res => {
+                if (!res.ok) throw new Error('Could not fetch prescriptions.');
+                return res.json();
+            })
+            .then(prescriptions => {
+                accordion.innerHTML = '';
+                if (prescriptions.length === 0) {
+                    accordion.innerHTML = '<p class="text-center text-muted">You have no prescriptions on record.</p>';
+                    return;
+                }
+                prescriptions.forEach((p, index) => {
+                    const date = new Date(Number(p.timestamp)).toLocaleString();
+                    const item = `
+                        <div class="accordion-item">
+                            <h2 class="accordion-header" id="heading-${index}">
+                                <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapse-${index}">
+                                    <strong>${p.disease}</strong>&nbsp;- Prescribed by Dr. ${p.doctorName} on ${date}
+                                </button>
+                            </h2>
+                            <div id="collapse-${index}" class="accordion-collapse collapse" data-bs-parent="#prescriptionsAccordion">
+                                <div class="accordion-body">
+                                    <pre class="p-3 rounded prescription-card"><code>${p.data}</code></pre>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                    accordion.innerHTML += item;
+                });
+            })
+            .catch(err => {
+                accordion.innerHTML = `<p class="text-center text-danger">${err.message}</p>`;
+            });
+        });
+
         document.getElementById('my-appointments-btn').addEventListener('click', () => {
            const appointmentsBody = document.getElementById('appointments-list-body');
            appointmentsBody.innerHTML = '<tr><td colspan="3" class="text-center">Loading appointments...</td></tr>';
-
            fetch('/api/my-patient-appointments', {
                headers: { 'Authorization': `Bearer ${token}` }
            })
@@ -203,7 +257,7 @@
                return res.json();
            })
            .then(appointments => {
-               appointmentsBody.innerHTML = ''; // Clear loading message
+               appointmentsBody.innerHTML = '';
                if (appointments.length === 0) {
                    appointmentsBody.innerHTML = '<tr><td colspan="3" class="text-center">You have no appointments.</td></tr>';
                } else {
@@ -221,7 +275,6 @@
                }
            })
            .catch(error => {
-               console.error('Error fetching appointments:', error);
                appointmentsBody.innerHTML = `<tr><td colspan="3" class="text-center text-danger">${error.message}</td></tr>`;
            });
         });
@@ -229,7 +282,7 @@
         // --- Consent Management Logic ---
         const consentModal = document.getElementById('consentModal');
         consentModal.addEventListener('show.bs.modal', fetchConsentLog);
-
+        
         async function fetchConsentLog() {
           const logBody = document.getElementById('consent-log-body');
           logBody.innerHTML = '<tr><td colspan="5" class="text-center">Loading...</td></tr>';
@@ -289,7 +342,7 @@
             msgDiv.innerHTML = `<div class="alert alert-danger">${err.message}</div>`;
           }
         });
-
+        
         document.getElementById('consent-log-body').addEventListener('click', async (e) => {
             if (e.target && e.target.classList.contains('revoke-btn')) {
                 const button = e.target;
